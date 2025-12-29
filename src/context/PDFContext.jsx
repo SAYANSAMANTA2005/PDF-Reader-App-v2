@@ -384,8 +384,74 @@ export const PDFProvider = ({ children }) => {
         setIsReading,
         startReading,
         stopReading,
+        handleDownload,
         synth // Exporting synth in case direct access is needed check status
     };
+
+    async function handleDownload() {
+        if (!pdfFile || !annotations) return;
+        
+        try {
+            const { PDFDocument, rgb, degrees } = await import('pdf-lib');
+            let pdfDoc;
+            
+            if (typeof pdfFile === 'string') {
+                const response = await fetch(pdfFile);
+                const arrayBuffer = await response.arrayBuffer();
+                pdfDoc = await PDFDocument.load(arrayBuffer);
+            } else if (pdfFile instanceof File) {
+                const arrayBuffer = await pdfFile.arrayBuffer();
+                pdfDoc = await PDFDocument.load(arrayBuffer);
+            }
+
+            const pages = pdfDoc.getPages();
+
+            for (const [pageNumStr, pageAnns] of Object.entries(annotations)) {
+                const pageNum = parseInt(pageNumStr);
+                const pdfPage = pages[pageNum - 1];
+                const { width, height } = pdfPage.getSize();
+
+                for (const ann of pageAnns) {
+                    if (ann.points && ann.points.length > 1) {
+                        // For paths, we might need to draw series of lines
+                        for (let i = 0; i < ann.points.length - 1; i++) {
+                            const p1 = ann.points[i];
+                            const p2 = ann.points[i+1];
+                            
+                            // Transform normalized (0-1) to PDF space
+                            // PDF y-axis is bottom-up
+                            pdfPage.drawLine({
+                                start: { x: p1.x * width, y: (1 - p1.y) * height },
+                                end: { x: p2.x * width, y: (1 - p2.y) * height },
+                                thickness: ann.strokeWidth || 3,
+                                color: hexToRgb(ann.color || '#ff0000', rgb),
+                                opacity: ann.opacity || 1,
+                            });
+                        }
+                    }
+                }
+            }
+
+            const pdfBytes = await pdfDoc.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `annotated_${fileName || 'document.pdf'}`;
+            link.click();
+        } catch (err) {
+            console.error("Download failed:", err);
+            alert("Failed to export annotated PDF. Error: " + err.message);
+        }
+    }
+
+    function hexToRgb(hex, rgb) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? rgb(
+            parseInt(result[1], 16) / 255,
+            parseInt(result[2], 16) / 255,
+            parseInt(result[3], 16) / 255
+        ) : rgb(1, 0, 0);
+    }
 
     return (
         <PDFContext.Provider value={value}>

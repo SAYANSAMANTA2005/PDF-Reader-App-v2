@@ -247,6 +247,7 @@ const PDFPage = ({ pageNum, pdfDocument, scale, rotation, isReading, onStartRead
         <div
             className="pdf-page-container"
             ref={containerRef}
+            data-page-number={pageNum}
             style={{
                 width: dimensions.width ? `${dimensions.width}px` : '600px',
                 height: dimensions.height ? `${dimensions.height}px` : '800px',

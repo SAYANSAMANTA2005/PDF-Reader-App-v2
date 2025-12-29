@@ -7,7 +7,9 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
         annotations,
         setAnnotations,
         annotationColor,
-        brushThickness
+        brushThickness,
+        searchResults,
+        currentMatchIndex
     } = usePDF();
 
     const [isDrawing, setIsDrawing] = useState(false);
@@ -129,6 +131,22 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                             pointerEvents: annotationMode === 'erase' ? 'auto' : 'none'
                         }}
                     />
+                ))}
+
+                {/* Render Search Highlights */}
+                {searchResults.map((match, idx) => (
+                    match.pageNum === pageNum && (
+                        <rect
+                            key={`search-${idx}`}
+                            x={match.x * width}
+                            y={match.y * height - (match.height * height)} // Adjust since y is baseline usually
+                            width={match.width * width}
+                            height={match.height * height * 1.5} // slightly taller for visibility
+                            fill={idx === currentMatchIndex ? "#2e7d32" : "#a5d6a7"}
+                            opacity={0.4}
+                            style={{ pointerEvents: 'none' }}
+                        />
+                    )
                 ))}
 
                 {/* Render Current Drawing Path */}

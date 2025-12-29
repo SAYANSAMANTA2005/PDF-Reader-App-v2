@@ -13,9 +13,9 @@ import {
     Highlighter,
     Pen,
     Eraser,
-    BookOpen,
     Volume2,
-    Info
+    Info,
+    Download
 } from 'lucide-react';
 import DrawingPanel from './DrawingPanel';
 
@@ -32,7 +32,7 @@ const Toolbar = () => {
         isTwoPageMode, setIsTwoPageMode,
         annotationColor, setAnnotationColor,
         isReading, setIsReading, stopReading,
-        brushThickness
+        brushThickness, handleDownload
     } = usePDF();
 
     const [isDrawingPanelOpen, setIsDrawingPanelOpen] = useState(false);
@@ -56,6 +56,15 @@ const Toolbar = () => {
     return (
         <div className="toolbar">
             <div className="toolbar-group">
+                <button
+                    onClick={handleDownload}
+                    className="tool-btn"
+                    title="Download Annotated PDF"
+                    disabled={!pdfDocument}
+                >
+                    <Download size={20} />
+                </button>
+                <div className="divider"></div>
                 <button
                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                     className={`tool - btn ${isSidebarOpen ? 'active' : ''} `}
