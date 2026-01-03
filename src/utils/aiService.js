@@ -35,9 +35,9 @@ const callAIFunc = async (prompt, text, modelName = "gemini-3-flash-preview") =>
         if (error.message.includes("API key not valid") || error.message.includes("API_KEY_INVALID")) {
             throw new Error("The API key you provided is invalid. Please double-check it at aistudio.google.com and ensure you copied it correctly without any extra characters.");
         }
-        if (error.message.includes("404") && modelName !== "gemini-pro") {
-            console.warn(`Model ${modelName} failed with 404, falling back to gemini-pro`);
-            return callAIFunc(prompt, text.substring(0, 10000), "gemini-pro");
+        if (error.message.includes("404") && modelName !== "gemini-3-flash-preview") {
+            console.warn(`Model ${modelName} failed with 404, falling back to gemini-3-flash-preview`);
+            return callAIFunc(prompt, text.substring(0, 10000), "gemini-3-flash-preview");
         }
         throw error;
     }
