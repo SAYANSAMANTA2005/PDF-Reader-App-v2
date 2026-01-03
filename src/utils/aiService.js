@@ -12,7 +12,7 @@ export const hasApiKey = () => {
     return !!getApiKey();
 };
 
-const getModel = (modelName = "gemini-1.5-flash") => {
+const getModel = (modelName = "gemini-3-flash-preview") => {
     const key = getApiKey();
     if (!key) throw new Error("API Key is missing. Please add it in the settings.");
     const genAI = new GoogleGenerativeAI(key);
@@ -20,7 +20,7 @@ const getModel = (modelName = "gemini-1.5-flash") => {
 };
 
 // Global fallback wrapper
-const callAIFunc = async (prompt, text, modelName = "gemini-1.5-flash") => {
+const callAIFunc = async (prompt, text, modelName = "gemini-3-flash-preview") => {
     try {
         const key = getApiKey();
         if (!key || key.trim() === "") {
@@ -52,20 +52,20 @@ export const generateSummary = async (text) => {
     Focus on key themes, main arguments, and important conclusions. 
     Use bullet points for clarity where appropriate. 
     Keep it concise but comprehensive.`;
-    return callAIFunc(prompt, text.substring(0, 25000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const semanticSearch = async (query, text) => {
     const prompt = `Given the following PDF content, find the most relevant sections or information related to the query: "${query}".
     Return a list of relevant snippets, including the page numbers if available in the text.
     If no relevant information is found, state so.`;
-    return callAIFunc(prompt, text.substring(0, 25000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const getSmartSuggestions = async (text) => {
     const prompt = `Based on the following PDF content, suggest 3 interesting questions or topics that a reader might want to explore further.
     Keep the suggestions short and engaging.`;
-    return callAIFunc(prompt, text.substring(0, 10000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const generateStudyMaterial = async (text, type = "flashcards") => {
@@ -81,7 +81,7 @@ export const generateStudyMaterial = async (text, type = "flashcards") => {
         prompt = `Based on the following PDF text, generate 5-10 viva/interview questions that test deep understanding of the core concepts. 
         Include a sample 'Ideal Answer' for each.`;
     }
-    return callAIFunc(prompt, text.substring(0, 15000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const generateRevisionMode = async (text) => {
@@ -90,7 +90,7 @@ export const generateRevisionMode = async (text) => {
     1. A "Key Concept Map" (summary of main ideas).
     2. A "Formula & Definitions" section (extract any formulas, equations, or critical definitions).
     3. A "Quick Review" checklist.`;
-    return callAIFunc(prompt, text.substring(0, 20000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const generateSocialContent = async (text, platform = "linkedin") => {
@@ -107,7 +107,7 @@ export const generateSocialContent = async (text, platform = "linkedin") => {
         prompt = `Write a compelling blog post draft based on the following PDF content. 
         Include a catchy title, an introduction, subheadings for main points, and a conclusion.`;
     }
-    return callAIFunc(prompt, text.substring(0, 15000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const generateWebsiteContent = async (text) => {
@@ -115,5 +115,5 @@ export const generateWebsiteContent = async (text) => {
     Organize the content with a clear navigation hierarchy (H1, H2, H3).
     Add "Sidebars" for key definitions or callouts.
     Make it look like a modern documentation or blog site.`;
-    return callAIFunc(prompt, text.substring(0, 25000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
