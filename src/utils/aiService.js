@@ -52,20 +52,20 @@ export const generateSummary = async (text) => {
     Focus on key themes, main arguments, and important conclusions. 
     Use bullet points for clarity where appropriate. 
     Keep it concise but comprehensive.`;
-    return callAIFunc(prompt, text.substring(0, 25000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const semanticSearch = async (query, text) => {
     const prompt = `Given the following PDF content, find the most relevant sections or information related to the query: "${query}".
     Return a list of relevant snippets, including the page numbers if available in the text.
     If no relevant information is found, state so.`;
-    return callAIFunc(prompt, text.substring(0, 25000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const getSmartSuggestions = async (text) => {
     const prompt = `Based on the following PDF content, suggest 3 interesting questions or topics that a reader might want to explore further.
     Keep the suggestions short and engaging.`;
-    return callAIFunc(prompt, text.substring(0, 10000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const generateStudyMaterial = async (text, type = "flashcards") => {
@@ -81,7 +81,7 @@ export const generateStudyMaterial = async (text, type = "flashcards") => {
         prompt = `Based on the following PDF text, generate 5-10 viva/interview questions that test deep understanding of the core concepts. 
         Include a sample 'Ideal Answer' for each.`;
     }
-    return callAIFunc(prompt, text.substring(0, 15000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const generateRevisionMode = async (text) => {
@@ -90,7 +90,7 @@ export const generateRevisionMode = async (text) => {
     1. A "Key Concept Map" (summary of main ideas).
     2. A "Formula & Definitions" section (extract any formulas, equations, or critical definitions).
     3. A "Quick Review" checklist.`;
-    return callAIFunc(prompt, text.substring(0, 20000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const generateSocialContent = async (text, platform = "linkedin") => {
@@ -107,7 +107,7 @@ export const generateSocialContent = async (text, platform = "linkedin") => {
         prompt = `Write a compelling blog post draft based on the following PDF content. 
         Include a catchy title, an introduction, subheadings for main points, and a conclusion.`;
     }
-    return callAIFunc(prompt, text.substring(0, 15000));
+    return callAIFunc(prompt, text.substring(0, 50000));
 };
 
 export const generateWebsiteContent = async (text) => {
@@ -115,5 +115,88 @@ export const generateWebsiteContent = async (text) => {
     Organize the content with a clear navigation hierarchy (H1, H2, H3).
     Add "Sidebars" for key definitions or callouts.
     Make it look like a modern documentation or blog site.`;
-    return callAIFunc(prompt, text.substring(0, 25000));
+    return callAIFunc(prompt, text.substring(0, 50000));
+};
+
+/**
+ * Ask PDF with Context Awareness
+ * Chat with PDF content using contextual understanding
+ */
+export const askPDFWithContext = async (question, context, selectedText = "", pageRange = "") => {
+    let prompt = `You are an expert assistant helping to understand PDF content. 
+    
+User Question: "${question}"
+
+${pageRange ? `Page Range: ${pageRange}` : ''}
+${selectedText ? `Selected Text:\n${selectedText}\n` : ''}
+
+PDF Context:
+${context}
+
+Instructions:
+1. Answer the question based on the provided context.
+2. If the selected text is provided, focus on it while using broader context for support.
+3. Be concise but thorough.
+4. Highlight relevant sections from the provided text in your answer.
+5. If information is not in the provided context, clearly state that.
+6. For complex topics, break down the explanation into digestible parts.`;
+
+    const response = await callAIFunc(prompt, context.substring(0, 80000));
+    return response;
+};
+
+/**
+ * Explain concept at different levels
+ */
+export const explainConcept = async (text, concept, level = "intermediate") => {
+    let prompt = "";
+
+    if (level === "beginner") {
+        prompt = `Explain the following concept in simple terms that a beginner can understand. Use analogies and everyday examples. Avoid jargon.
+        
+Concept: ${concept}`;
+    } else if (level === "intermediate") {
+        prompt = `Explain the following concept at an intermediate level. Assume basic understanding of the subject.
+        
+Concept: ${concept}`;
+    } else if (level === "advanced") {
+        prompt = `Provide an advanced explanation of the following concept with technical depth and nuance.
+        
+Concept: ${concept}`;
+    }
+
+    return callAIFunc(prompt, text.substring(0, 50000));
+};
+
+/**
+ * Summarize specific pages
+ */
+export const summarizePageRange = async (text, startPage, endPage) => {
+    const prompt = `Summarize the following content from pages ${startPage} to ${endPage} in a concise manner. 
+    Focus on key points and main ideas.`;
+    return callAIFunc(prompt, text.substring(0, 60000));
+};
+
+/**
+ * Extract source with answer - tracks where information came from
+ */
+export const askPDFWithSourceTracking = async (question, context, selectedText = "") => {
+    let prompt = `Answer the following question based on the PDF content. 
+    
+After your answer, provide a "SOURCE" section that indicates exactly where in the text this information came from.
+
+Question: "${question}"
+
+${selectedText ? `Selected Text:\n${selectedText}\n\n` : ''}
+
+Content:
+${context}
+
+Format your response as:
+[Your detailed answer here]
+
+SOURCE:
+[Specify the exact quote or page reference from the PDF that supports this answer]`;
+
+    return callAIFunc(prompt, context.substring(0, 80000));
 };

@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { usePDF } from '../context/PDFContext';
 import SearchBar from './SearchBar';
+import TextToSpeechPanel from './TextToSpeechPanel';
+import PDFContextChat from './PDFContextChat';
 import {
     ZoomIn,
     ZoomOut,
@@ -16,7 +18,8 @@ import {
     Volume2,
     Info,
     Download,
-    BookOpen
+    BookOpen,
+    MessageSquare
 } from 'lucide-react';
 import DrawingPanel from './DrawingPanel';
 
@@ -37,6 +40,8 @@ const Toolbar = () => {
     } = usePDF();
 
     const [isDrawingPanelOpen, setIsDrawingPanelOpen] = useState(false);
+    const [isTextToSpeechOpen, setIsTextToSpeechOpen] = useState(false);
+    const [isPDFChatOpen, setIsPDFChatOpen] = useState(false);
 
     // Removed local isReading state and handleZoomIn duplicate
 
@@ -68,7 +73,7 @@ const Toolbar = () => {
                 <div className="divider"></div>
                 <button
                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                    className={`tool - btn ${isSidebarOpen ? 'active' : ''} `}
+                    className={`tool-btn ${isSidebarOpen ? 'active' : ''}`}
                     title="Toggle Sidebar"
                     disabled={!pdfDocument}
                 >
@@ -114,7 +119,7 @@ const Toolbar = () => {
             <div className="toolbar-group">
                 <button
                     onClick={() => setAnnotationMode(annotationMode === 'highlight' ? 'none' : 'highlight')}
-                    className={`tool - btn ${annotationMode === 'highlight' ? 'active' : ''} `}
+                    className={`tool-btn ${annotationMode === 'highlight' ? 'active' : ''}`}
                     title="Highlight (Freehand)"
                     disabled={!pdfDocument}
                 >
@@ -155,7 +160,7 @@ const Toolbar = () => {
                 </div>
                 <button
                     onClick={() => setIsTwoPageMode(!isTwoPageMode)}
-                    className={`tool - btn ${isTwoPageMode ? 'active' : ''} `}
+                    className={`tool-btn ${isTwoPageMode ? 'active' : ''}`}
                     title="Two Page View"
                     disabled={!pdfDocument}
                 >
@@ -163,29 +168,59 @@ const Toolbar = () => {
                 </button>
                 <button
                     onClick={() => {
-                        if (isReading) {
-                            stopReading();
-                            setIsReading(false);
-                        } else {
-                            setIsReading(true);
-                            // Visual cue?
-                        }
+                        console.log('Toggling TTS Panel');
+                        setIsTextToSpeechOpen(prev => {
+                            const newState = !prev;
+                            if (newState) setIsPDFChatOpen(false);
+                            return newState;
+                        });
                     }}
-                    className={`tool-btn ${isReading ? 'active' : ''}`}
-                    title="Read Aloud Mode (Click text to start)"
+                    className={`tool-btn ${isTextToSpeechOpen ? 'active' : ''}`}
+                    title="Text-to-Speech (Read Aloud with Controls)"
                     disabled={!pdfDocument}
                 >
                     <Volume2 size={20} />
                 </button>
+                <button
+                    onClick={() => {
+                        console.log('Toggling AI Chat Panel');
+                        setIsPDFChatOpen(prev => {
+                            const newState = !prev;
+                            if (newState) setIsTextToSpeechOpen(false);
+                            return newState;
+                        });
+                    }}
+                    className={`tool-btn ${isPDFChatOpen ? 'active' : ''}`}
+                    title="Ask PDF with AI (Context-Aware Questions)"
+                    disabled={!pdfDocument}
+                >
+                    <MessageSquare size={20} />
+                </button>
             </div>
 
             <div className="toolbar-group">
-                <SearchBar />
+                <div style={{ maxWidth: '250px', flex: 1 }}>
+                    <SearchBar />
+                </div>
                 <div className="divider"></div>
-                <button onClick={toggleTheme} title="Toggle Theme" className="theme-btn">
+                <button
+                    onClick={toggleTheme}
+                    title="Toggle Theme"
+                    className={`tool-btn ${theme === 'dark' ? 'active' : ''}`}
+                >
                     {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
                 </button>
             </div>
+
+            {/* Text-to-Speech Panel */}
+            {isTextToSpeechOpen && (
+                <TextToSpeechPanel onClose={() => setIsTextToSpeechOpen(false)} />
+            )}
+
+            {/* PDF Context Chat Panel */}
+            {isPDFChatOpen && (
+                <PDFContextChat onClose={() => setIsPDFChatOpen(false)} />
+            )}
         </div>
     );
 };
