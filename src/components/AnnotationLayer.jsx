@@ -6,6 +6,7 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
         annotationMode,
         annotations,
         setAnnotations,
+        addAnnotation, // Use this for history tracking
         annotationColor,
         brushThickness,
         searchResults,
@@ -37,6 +38,7 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                 [pageNum]: pageAnns
             };
         });
+        // Note: For full git-like log, we should also track erasures in addAnnotation action: 'delete'
     };
 
     const handleMouseDown = (e) => {
@@ -59,16 +61,13 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
         if (currentPath.length > 0) {
             const newAnnotation = {
                 type: annotationMode === 'highlight' ? 'highlight' : 'draw',
-                color: annotationMode === 'highlight' ? '#ffff00' : annotationColor,
+                color: annotationColor, // Use the current active color from palette
                 opacity: annotationMode === 'highlight' ? 0.4 : 1,
                 strokeWidth: annotationMode === 'highlight' ? 20 : brushThickness,
                 points: currentPath
             };
 
-            setAnnotations(prev => ({
-                ...prev,
-                [pageNum]: [...(prev[pageNum] || []), newAnnotation]
-            }));
+            addAnnotation(pageNum, newAnnotation);
             setCurrentPath([]);
         }
     };
@@ -153,7 +152,7 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                 {currentPath.length > 0 && annotationMode !== 'erase' && (
                     <path
                         d={pointsToPath(currentPath)}
-                        stroke={annotationMode === 'highlight' ? '#ffff00' : annotationColor}
+                        stroke={annotationColor}
                         strokeWidth={annotationMode === 'highlight' ? 20 : brushThickness}
                         fill="none"
                         strokeLinecap="round"

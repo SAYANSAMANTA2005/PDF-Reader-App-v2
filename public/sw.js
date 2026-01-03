@@ -16,9 +16,23 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+    // Bypass for Vite internal requests and HMR
+    if (event.request.url.includes('/@vite/') || event.request.url.includes('/src/')) {
+        return;
+    }
+
     event.respondWith(
-        caches.match(event.request).then((response) => {
-            return response || fetch(event.request);
+        caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+                return cachedResponse;
+            }
+            return fetch(event.request).catch(() => {
+                // Fallback for offline or errors
+                return new Response('Network error occurred', {
+                    status: 408,
+                    headers: { 'Content-Type': 'text/plain' }
+                });
+            });
         })
     );
 });

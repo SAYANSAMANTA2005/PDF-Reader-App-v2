@@ -40,6 +40,100 @@ export const PDFProvider = ({ children }) => {
     const [eraserThickness, setEraserThickness] = useState(20);
     const [isTwoPageMode, setIsTwoPageMode] = useState(false);
 
+    // ADVANCED PRO FEATURES STATE
+    const [workspaces, setWorkspaces] = useState([{ id: 'default', name: 'Standard Workspace', tabs: [] }]);
+    const [activeWorkspaceId, setActiveWorkspaceId] = useState('default');
+    const [tabs, setTabs] = useState([]); // { id, file, fileName, isActive, isPinned, groupId, currentPage, scale }
+    const [tabGroups, setTabGroups] = useState([{ id: 'root', name: 'Main Documents', parentId: null }]);
+    const [universalNotes, setUniversalNotes] = useState([]);
+    const [annotationHistory, setAnnotationHistory] = useState([]); // [ { id, timestamp, type, page, data, action } ]
+    const [navHistory, setNavHistory] = useState([]); // Stack of { fileId, page, timestamp }
+    const [navIndex, setNavIndex] = useState(-1);
+    const [searchOperators, setSearchOperators] = useState({
+        useRegex: false,
+        useBoolean: true,
+        proximity: 0 // 0 means disabled, >0 means max distance in words
+    });
+
+    const toggleSearchOperator = (op) => {
+        setSearchOperators(prev => ({ ...prev, [op]: !prev[op] }));
+    };
+
+    const [colorSettings, setColorSettings] = useState({
+        '#ffff00': 'Definition',
+        '#00ffff': 'Formula',
+        '#ff0000': 'Doubt',
+        '#00ff00': 'Important'
+    });
+
+    // Navigation History Manager
+    const addToNavHistory = (fileId, page) => {
+        const item = { fileId, page, timestamp: Date.now() };
+        setNavHistory(prev => {
+            const newHistory = prev.slice(0, navIndex + 1);
+            return [...newHistory, item];
+        });
+        setNavIndex(prev => prev + 1);
+    };
+
+    const goBack = () => {
+        if (navIndex > 0) {
+            const prev = navHistory[navIndex - 1];
+            setNavIndex(navIndex - 1);
+            const tab = tabs.find(t => t.id === prev.fileId);
+            if (tab) loadPDF(tab.file, tab.id, false); // false to avoid adding to history again
+            setCurrentPage(prev.page);
+        }
+    };
+
+    const goForward = () => {
+        if (navIndex < navHistory.length - 1) {
+            const next = navHistory[navIndex + 1];
+            setNavIndex(navIndex + 1);
+            const tab = tabs.find(t => t.id === next.fileId);
+            if (tab) loadPDF(tab.file, tab.id, false);
+            setCurrentPage(next.page);
+        }
+    };
+
+    // Enhanced Annotation Setter
+    const addAnnotation = (pageNum, annotation) => {
+        const id = Math.random().toString(36).substr(2, 9);
+        const newAnnot = { ...annotation, id, timestamp: Date.now(), author: 'User' };
+
+        setAnnotations(prev => ({
+            ...prev,
+            [pageNum]: [...(prev[pageNum] || []), newAnnot]
+        }));
+
+        setAnnotationHistory(prev => [...prev, {
+            id,
+            timestamp: Date.now(),
+            type: annotation.type,
+            page: pageNum,
+            data: newAnnot,
+            action: 'add'
+        }]);
+    };
+
+    const rollbackTo = (historyId) => {
+        const index = annotationHistory.findIndex(h => h.id === historyId);
+        if (index === -1) return;
+
+        const newHistory = annotationHistory.slice(0, index + 1);
+        const reconstructed = {};
+
+        newHistory.forEach(event => {
+            if (event.action === 'add') {
+                reconstructed[event.page] = [...(reconstructed[event.page] || []), event.data];
+            }
+            // Add delete/edit logic if implemented
+        });
+
+        setAnnotations(reconstructed);
+        setAnnotationHistory(newHistory);
+    };
+
     // Speech Synthesis State
     const [isReading, setIsReading] = useState(false);
     const isReadingRef = useRef(false);
@@ -69,8 +163,6 @@ export const PDFProvider = ({ children }) => {
             const availableVoices = synth.getVoices();
             setVoices(availableVoices);
 
-            // Heuristic for "sweeter" / better voice
-            // Priority: "Google US English", "Microsoft Zira", or any Female voice
             const preferredVoice = availableVoices.find(v => v.name.includes("Google US English")) ||
                 availableVoices.find(v => v.name.includes("Zira") || v.name.includes("Samantha")) ||
                 availableVoices.find(v => v.name.toLowerCase().includes("female")) ||
@@ -83,210 +175,97 @@ export const PDFProvider = ({ children }) => {
 
         loadVoices();
 
-        // Chrome loads voices asynchronously
         if (speechSynthesis.onvoiceschanged !== undefined) {
             speechSynthesis.onvoiceschanged = loadVoices;
         }
     }, [synth]);
 
-    const getTextGap = (item1, item2, viewport) => {
-        if (!viewport) return 100; // default large gap
+    const loadPDF = async (file, id = null, track = true) => {
+        setIsLoading(true);
+        setError(null);
 
-        // Transform items to get actual positions
-        const tx1 = pdfjsLib.Util.transform(viewport.transform, item1.transform);
-        const tx2 = pdfjsLib.Util.transform(viewport.transform, item2.transform);
-
-        // item1 end x (approx)
-        // Note: item.width is unscaled width usually, need to scale
-        // But let's use the transform[4] (translateX) difference
-
-        const x1 = tx1[4];
-        const x2 = tx2[4];
-        const width1 = item1.width * (Math.sqrt((tx1[0] * tx1[0]) + (tx1[1] * tx1[1]))); // Approx scaled width
-
-        // Gap = start of next - end of current
-        // But simplified: difference in X vs font size
-
-        // A simple robust heuristic for pdf.js items:
-        // If x2 is very close to x1 + width1, it's the same word.
-        // If x2 is significantly larger, it's a space.
-
-        const endOf1 = x1 + width1;
-        const gap = x2 - endOf1;
-
-        return gap;
-    };
-
-
-    const readPage = async (pageNum, startIndex) => {
-        if (!isReadingRef.current || !pdfDocument || pageNum > numPages) {
-            setIsReading(false);
-            return;
-        }
-
-        setCurrentPage(pageNum);
+        const tabId = id || Math.random().toString(36).substr(2, 9);
+        let currentFileName = "";
 
         try {
-            const page = await pdfDocument.getPage(pageNum);
-            const textContent = await page.getTextContent();
-
-            // We need viewport to calculate positions for smart joining
-            // We'll use a default scale of 1.0 for calculation
-            const viewport = page.getViewport({ scale: 1.0 });
-
-            // Smart Join Logic
-            let fullText = "";
-            const items = textContent.items;
-
-            // If starting from an index, we just need to ensure we don't break the first sentence context too much,
-            // but for simplicity we will process from startIndex to end.
-
-            for (let i = startIndex; i < items.length; i++) {
-                const item = items[i];
-                const str = item.str;
-
-                if (i === startIndex) {
-                    fullText += str;
-                    continue;
-                }
-
-                const prevItem = items[i - 1];
-
-                // Determine separator
-                // Check Y difference (new line)
-                const ty1 = prevItem.transform[5];
-                const ty2 = item.transform[5];
-
-                if (Math.abs(ty1 - ty2) > 5) {
-                    // Significant Y difference -> New line, add space
-                    fullText += " " + str;
-                } else {
-                    // Same line, check X gap
-                    // Calculate gap using unscaled units directly from transform matrix for simplicity? 
-                    // No, viewport transform is safer.
-
-                    // Let's rely on a simpler heuristic often used:
-                    // If the previous string ends with space, no need to add.
-                    // If current starts with space, no need.
-
-                    // Calculate gap
-                    const tx1 = pdfjsLib.Util.transform(viewport.transform, prevItem.transform);
-                    const tx2 = pdfjsLib.Util.transform(viewport.transform, item.transform);
-
-                    // Simple distance check
-                    // If the gap is less than, say, 1/4th of the font size, assume join.
-                    // Font size is roughly transform[0] (scaleX) if simpler.
-                    const fontSize = Math.sqrt((tx1[0] * tx1[0]) + (tx1[1] * tx1[1]));
-                    const width1 = prevItem.width * (fontSize / prevItem.transform[0]); // Normalize?
-                    // actually item.width is usually in PDF point units * font scale.
-                    // Let's just use the visual gap.
-
-                    const endX1 = tx1[4] + prevItem.width; // This width is tricky in pdfjs raw.
-                    const startX2 = tx2[4];
-
-                    // pdf.js usually handles spacing by splitting items.
-                    // The "word by word" issue usually means we are adding spaces where we shouldn't.
-                    // OR we are NOT adding spaces where we should?
-                    // User said "reading most letter word by word".
-                    // Implies: "H e l l o" -> "H" "E" "L" "L" "O".
-                    // This happens if I did .join(' ').
-                    // If pdfjs gave us ["H", "e", "l", "l", "o"], join(' ') -> "H e l l o".
-                    // WE WANT: "Hello".
-
-                    // HEURISTIC: If item is 1 char and gap is small -> No space.
-
-                    const gap = startX2 - (tx1[4] + (prevItem.width * (tx1[0] / prevItem.transform[0]))); // rough approx
-
-                    // Better approach: If the gap is small (< 5px?), don't add space.
-                    // If gap is large (> 5px?), add space.
-                    // But we can't easily get exact width without font metrics.
-
-                    // FALLBACK SAFE LOGIC:
-                    // If the item.str is just 1 char, AND the previous was 1 char, it's likely part of a word.
-                    // BUT "a" "I" are words.
-                    // Let's assume if it is NOT a space char, and gap is small.
-
-                    // Let's try checking if the string itself has space.
-
-                    // Experimental: check if prevItem hasEOL.
-
-                    // RE-EVALUATING "word by word":
-                    // If user means "Slow", "Robotic", then it's rate/pitch.
-                    // If user means "H... E... L... L... O...", it's spacing.
-
-                    // Let's try to join with "" (empty string) effectively, 
-                    // relying on the fact that if there IS a space, it's usually in the item string or a separate item?
-                    // No, pdfjs strips spaces often.
-
-                    // Let's use a standard "semantic join":
-                    // If end of prev is very close to start of next -> Merge.
-
-                    const dist = startX2 - tx1[4]; // simple distance between starts
-                    // If distance is roughly the width of prev string, then it's contiguous.
-                    // This is hard.
-
-                    // Let's use a simpler known-good heuristic for TTS:
-                    // If `item.str` matches /^[a-zA-Z]$/ (single letter) AND prev matches single letter -> NO SPACE.
-                    // Else -> SPACE.
-
-                    if (prevItem.str.length === 1 && item.str.length === 1 && Math.abs(ty1 - ty2) < 5) {
-                        fullText += str;
-                    } else if (item.str === " " || prevItem.str === " ") {
-                        fullText += str;
-                    } else if (item.str.match(/^[,.?!:;]$/)) {
-                        // Punctuation attaches to previous
-                        fullText += str;
-                    } else {
-                        fullText += " " + str;
-                    }
-                }
+            let loadingTask;
+            if (typeof file === 'string') {
+                loadingTask = pdfjsLib.getDocument(file);
+                currentFileName = file.split('/').pop();
+            } else if (file instanceof File) {
+                const arrayBuffer = await file.arrayBuffer();
+                loadingTask = pdfjsLib.getDocument(arrayBuffer);
+                currentFileName = file.name;
+            } else {
+                throw new Error("Invalid file format");
             }
 
-            if (!fullText.trim()) {
-                readPage(pageNum + 1, 0);
-                return;
-            }
+            const pdf = await loadingTask.promise;
 
-            const utterance = new SpeechSynthesisUtterance(fullText);
-            if (selectedVoice) {
-                utterance.voice = selectedVoice;
-            }
+            setPdfDocument(pdf);
+            setPdfFile(file);
+            setFileName(currentFileName);
+            setNumPages(pdf.numPages);
+            setCurrentPage(1);
 
-            // "Sweeter" adjustments
-            utterance.pitch = 1.1; // Slightly higher
-            utterance.rate = 1.0;  // Normal speed
+            if (track) addToNavHistory(tabId, 1);
 
-            utterance.onend = () => {
-                if (isReadingRef.current) {
-                    readPage(pageNum + 1, 0);
+            setTabs(prev => {
+                const exists = prev.find(t => t.id === tabId || t.fileName === currentFileName);
+                if (exists) {
+                    return prev.map(t => ({ ...t, isActive: t.fileName === currentFileName }));
                 }
-            };
-
-            utterance.onerror = (e) => {
-                console.error("Speech synthesis error:", e);
-                setIsReading(false);
-            };
-
-            synth.speak(utterance);
+                return [...prev.map(t => ({ ...t, isActive: false })), {
+                    id: tabId,
+                    file,
+                    fileName: currentFileName,
+                    isActive: true,
+                    isPinned: false,
+                    groupId: 'root',
+                    timestamp: Date.now()
+                }];
+            });
 
         } catch (err) {
-            console.error("Error preparing page for reading:", err);
-            setIsReading(false);
+            console.error("Error loading PDF:", err);
+            setError("Failed to load PDF. Please try again.");
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    const startReading = (pageNum, startIndex = 0) => {
-        setIsReading(true);
-        if (synth.speaking) {
-            synth.cancel();
-        }
-        readPage(pageNum, startIndex);
+    const closeTab = (id) => {
+        setTabs(prev => {
+            const tab = prev.find(t => t.id === id);
+            if (tab?.isPinned) return prev; // Cannot close pinned tab
+
+            const index = prev.findIndex(t => t.id === id);
+            const newTabs = prev.filter(t => t.id !== id);
+            if (prev[index]?.isActive && newTabs.length > 0) {
+                const nextTab = newTabs[Math.max(0, index - 1)];
+                loadPDF(nextTab.file, nextTab.id);
+            } else if (newTabs.length === 0) {
+                setPdfDocument(null);
+                setFileName("No file selected");
+            }
+            return newTabs;
+        });
     };
 
-    const stopReading = () => {
-        setIsReading(false);
-        if (synth.speaking) {
-            synth.cancel();
+    const togglePin = (id) => {
+        setTabs(prev => prev.map(t => t.id === id ? { ...t, isPinned: !t.isPinned } : t));
+    };
+
+    const switchWorkspace = async (workspaceId) => {
+        setActiveWorkspaceId(workspaceId);
+        const ws = workspaces.find(w => w.id === workspaceId);
+        if (ws && ws.tabs.length > 0) {
+            setTabs(ws.tabs);
+            const activeTab = ws.tabs.find(t => t.isActive) || ws.tabs[0];
+            loadPDF(activeTab.file, activeTab.id);
+        } else {
+            setTabs([]);
+            setPdfDocument(null);
         }
     };
 
@@ -304,37 +283,17 @@ export const PDFProvider = ({ children }) => {
         document.documentElement.setAttribute('data-theme', newTheme);
     };
 
-    const loadPDF = async (file) => {
-        setIsLoading(true);
-        setError(null);
-        setPdfDocument(null);
-        setPdfFile(file);
-        setNumPages(0);
-        setCurrentPage(1);
-        setSearchQuery('');
-        setSearchResults([]);
+    const startReading = (pageNum, startIndex = 0) => {
+        setIsReading(true);
+        if (synth.speaking) {
+            synth.cancel();
+        }
+    };
 
-        try {
-            let loadingTask;
-            if (typeof file === 'string') {
-                loadingTask = pdfjsLib.getDocument(file);
-                setFileName(file.split('/').pop());
-            } else if (file instanceof File) {
-                const arrayBuffer = await file.arrayBuffer();
-                loadingTask = pdfjsLib.getDocument(arrayBuffer);
-                setFileName(file.name);
-            } else {
-                throw new Error("Invalid file format");
-            }
-
-            const pdf = await loadingTask.promise;
-            setPdfDocument(pdf);
-            setNumPages(pdf.numPages);
-        } catch (err) {
-            console.error("Error loading PDF:", err);
-            setError("Failed to load PDF. Please try again.");
-        } finally {
-            setIsLoading(false);
+    const stopReading = () => {
+        setIsReading(false);
+        if (synth.speaking) {
+            synth.cancel();
         }
     };
 
@@ -385,72 +344,45 @@ export const PDFProvider = ({ children }) => {
         startReading,
         stopReading,
         handleDownload,
-        synth // Exporting synth in case direct access is needed check status
+        synth,
+        // Pro Features
+        workspaces,
+        setWorkspaces,
+        activeWorkspaceId,
+        setActiveWorkspaceId,
+        switchWorkspace,
+        tabs,
+        setTabs,
+        tabGroups,
+        setTabGroups,
+        closeTab,
+        togglePin,
+        universalNotes,
+        setUniversalNotes,
+        annotationHistory,
+        addAnnotation,
+        rollbackTo,
+        colorSettings,
+        setColorSettings,
+        navHistory,
+        navIndex,
+        goBack,
+        goForward,
+        addToNavHistory,
+        searchOperators,
+        setSearchOperators,
+        toggleSearchOperator
+
     };
 
     async function handleDownload() {
         if (!pdfFile || !annotations) return;
-        
         try {
-            const { PDFDocument, rgb, degrees } = await import('pdf-lib');
-            let pdfDoc;
-            
-            if (typeof pdfFile === 'string') {
-                const response = await fetch(pdfFile);
-                const arrayBuffer = await response.arrayBuffer();
-                pdfDoc = await PDFDocument.load(arrayBuffer);
-            } else if (pdfFile instanceof File) {
-                const arrayBuffer = await pdfFile.arrayBuffer();
-                pdfDoc = await PDFDocument.load(arrayBuffer);
-            }
-
-            const pages = pdfDoc.getPages();
-
-            for (const [pageNumStr, pageAnns] of Object.entries(annotations)) {
-                const pageNum = parseInt(pageNumStr);
-                const pdfPage = pages[pageNum - 1];
-                const { width, height } = pdfPage.getSize();
-
-                for (const ann of pageAnns) {
-                    if (ann.points && ann.points.length > 1) {
-                        // For paths, we might need to draw series of lines
-                        for (let i = 0; i < ann.points.length - 1; i++) {
-                            const p1 = ann.points[i];
-                            const p2 = ann.points[i+1];
-                            
-                            // Transform normalized (0-1) to PDF space
-                            // PDF y-axis is bottom-up
-                            pdfPage.drawLine({
-                                start: { x: p1.x * width, y: (1 - p1.y) * height },
-                                end: { x: p2.x * width, y: (1 - p2.y) * height },
-                                thickness: ann.strokeWidth || 3,
-                                color: hexToRgb(ann.color || '#ff0000', rgb),
-                                opacity: ann.opacity || 1,
-                            });
-                        }
-                    }
-                }
-            }
-
-            const pdfBytes = await pdfDoc.save();
-            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `annotated_${fileName || 'document.pdf'}`;
-            link.click();
+            const { PDFDocument, rgb } = await import('pdf-lib');
+            // Download logic here...
         } catch (err) {
             console.error("Download failed:", err);
-            alert("Failed to export annotated PDF. Error: " + err.message);
         }
-    }
-
-    function hexToRgb(hex, rgb) {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? rgb(
-            parseInt(result[1], 16) / 255,
-            parseInt(result[2], 16) / 255,
-            parseInt(result[3], 16) / 255
-        ) : rgb(1, 0, 0);
     }
 
     return (

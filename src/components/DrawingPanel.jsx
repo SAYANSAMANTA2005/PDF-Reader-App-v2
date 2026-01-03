@@ -8,25 +8,20 @@ const DrawingPanel = ({ onClose }) => {
         setAnnotationColor,
         brushThickness,
         setBrushThickness,
-        annotationMode
+        annotationMode,
+        colorSettings
     } = usePDF();
 
-    const colors = [
-        '#fff176', // Yellow
-        '#81c784', // Green
-        '#64b5f6', // Light Blue
-        '#f06292', // Pink
-        '#e53935'  // Red
-    ];
+    const colors = Object.keys(colorSettings);
 
     const handleColorClick = (color) => {
         setAnnotationColor(color);
     };
 
     return (
-        <div 
-            className="drawing-panel" 
-            onClick={(e) => e.stopPropagation()} 
+        <div
+            className="drawing-panel"
+            onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
             onMouseUp={(e) => e.stopPropagation()}
         >

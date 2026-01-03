@@ -1,16 +1,69 @@
 import React, { useState } from 'react';
 import { usePDF } from '../context/PDFContext';
-import { Search, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Search, X, ChevronUp, ChevronDown, Settings2, SlidersHorizontal } from 'lucide-react';
 
 const SearchBar = () => {
-    const { 
-        searchQuery, setSearchQuery, 
-        searchResults, setSearchResults, 
-        currentMatchIndex, setCurrentMatchIndex, 
-        pdfDocument, setCurrentPage 
+    const {
+        searchQuery, setSearchQuery,
+        searchResults, setSearchResults,
+        currentMatchIndex, setCurrentMatchIndex,
+        pdfDocument, setCurrentPage,
+        searchOperators, toggleSearchOperator
     } = usePDF();
 
     const [isSearching, setIsSearching] = useState(false);
+    const [showOptions, setShowOptions] = useState(false);
+
+    const performAdvancedSearch = (text, query, ops) => {
+        if (ops.useRegex) {
+            try {
+                const regex = new RegExp(query, 'gi');
+                return regex.test(text);
+            } catch (e) {
+                return false;
+            }
+        }
+
+        if (ops.useBoolean) {
+            const tokens = query.split(/\s+/);
+            const textLower = text.toLowerCase();
+            let match = true;
+            let currentOp = 'AND';
+
+            for (let i = 0; i < tokens.length; i++) {
+                const token = tokens[i].toUpperCase();
+
+                if (token === 'OR') {
+                    currentOp = 'OR';
+                    continue;
+                }
+                if (token === 'NOT') {
+                    currentOp = 'NOT';
+                    continue;
+                }
+                if (token === 'AND') {
+                    currentOp = 'AND';
+                    continue;
+                }
+
+                const term = tokens[i].toLowerCase();
+                const termMatch = textLower.includes(term);
+
+                if (currentOp === 'AND') {
+                    match = match && termMatch;
+                } else if (currentOp === 'OR') {
+                    match = match || termMatch;
+                } else if (currentOp === 'NOT') {
+                    if (termMatch) return false;
+                }
+
+                currentOp = 'AND';
+            }
+            return match;
+        }
+
+        return text.toLowerCase().includes(query.toLowerCase());
+    };
 
     const handleSearch = async (e) => {
         if (e) e.preventDefault();
@@ -27,35 +80,33 @@ const SearchBar = () => {
                 const textContent = await page.getTextContent();
                 const viewport = page.getViewport({ scale: 1.0 });
 
-                // Simple search logic: join text items and find index
-                // For exact coordinates, we need to map indices back to items
-                // This is a bit complex, but let's try a heuristic: 
-                // if searchQuery is in item.str, use its transform.
-                
-                textContent.items.forEach((item) => {
-                    const str = item.str.toLowerCase();
-                    const query = searchQuery.toLowerCase();
-                    
-                    if (str.includes(query)) {
-                        // More sophisticated logic would handle word breaks across items, 
-                        // but this covers most cases.
-                        const tx = item.transform; // [scaleX, skewY, skewX, scaleY, tx, ty]
-                        
+                // Join all items on page for whole-page boolean/regex matching
+                const fullPageText = textContent.items.map(item => item.str).join(' ');
+
+                if (performAdvancedSearch(fullPageText, searchQuery, searchOperators)) {
+                    // For UI sake, find a specific item that matches at least part of it
+                    // Or just highlight the page
+                    const bestItem = textContent.items.find(item =>
+                        performAdvancedSearch(item.str, searchQuery.split(/\s+/)[0], { useRegex: false, useBoolean: false })
+                    ) || textContent.items[0];
+
+                    if (bestItem) {
+                        const tx = bestItem.transform;
                         allMatches.push({
                             pageNum: i,
                             x: tx[4] / viewport.width,
-                            y: (viewport.height - tx[5]) / viewport.height, // Flip Y for normalized CSS top
-                            width: item.width / viewport.width,
-                            height: Math.sqrt(tx[0]*tx[0] + tx[1]*tx[1]) / viewport.height, // Approx font size
-                            text: item.str
+                            y: (viewport.height - tx[5]) / viewport.height,
+                            width: (bestItem.width || 50) / viewport.width,
+                            height: 20 / viewport.height,
+                            text: bestItem.str
                         });
                     }
-                });
+                }
             }
 
             setSearchResults(allMatches);
             setCurrentMatchIndex(allMatches.length > 0 ? 0 : -1);
-            
+
             if (allMatches.length > 0) {
                 const firstMatch = allMatches[0];
                 setCurrentPage(firstMatch.pageNum);
@@ -69,7 +120,6 @@ const SearchBar = () => {
     };
 
     const scrollToMatch = (match) => {
-        // Find the page container and scroll to it
         setTimeout(() => {
             const pageEl = document.querySelector(`[data-page-number="${match.pageNum}"]`);
             if (pageEl) {
@@ -97,43 +147,70 @@ const SearchBar = () => {
     };
 
     return (
-        <div className="search-bar">
-            <div className="search-input-wrapper">
-                <Search size={16} className="search-icon" />
+        <div className="search-bar" style={{ position: 'relative' }}>
+            <div className="search-input-wrapper" style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', padding: '2px 8px' }}>
+                <Search size={16} className="search-icon" style={{ color: 'var(--text-secondary)' }} />
                 <input
                     type="text"
-                    placeholder="Search..."
+                    placeholder={searchOperators.useRegex ? "Regex Search..." : "Search (use AND, OR, NOT)..."}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') handleSearch(e);
                     }}
+                    style={{ flex: 1, border: 'none', background: 'transparent', padding: '8px', fontSize: '0.9rem', color: 'var(--text-primary)', outline: 'none' }}
                 />
-                <div className="search-actions">
+                <div className="search-actions" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <button
+                        onClick={() => setShowOptions(!showOptions)}
+                        style={{ background: 'none', border: 'none', color: showOptions ? 'var(--accent-color)' : 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}
+                        title="Search Options"
+                    >
+                        <SlidersHorizontal size={14} />
+                    </button>
                     {searchQuery && (
-                        <button onClick={() => { setSearchQuery(''); setSearchResults([]); setCurrentMatchIndex(-1); }} className="clear-btn">
+                        <button onClick={() => { setSearchQuery(''); setSearchResults([]); setCurrentMatchIndex(-1); }} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                             <X size={14} />
                         </button>
                     )}
                     {searchResults.length > 0 && (
                         <>
-                            <div className="search-divider"></div>
-                            <button onClick={prevMatch} title="Previous Match" className="nav-btn">
-                                <ChevronUp size={16} />
-                            </button>
-                            <button onClick={nextMatch} title="Next Match" className="nav-btn">
-                                <ChevronDown size={16} />
-                            </button>
+                            <div style={{ width: '1px', height: '16px', background: 'var(--border-color)', margin: '0 4px' }}></div>
+                            <button onClick={prevMatch} className="nav-btn"><ChevronUp size={16} /></button>
+                            <button onClick={nextMatch} className="nav-btn"><ChevronDown size={16} /></button>
                         </>
                     )}
                 </div>
             </div>
-            {searchResults.length > 0 && (
-                <div className="search-info">
-                    {currentMatchIndex + 1} / {searchResults.length} matches (pages)
+
+            {showOptions && (
+                <div style={{
+                    position: 'absolute', top: '100%', right: 0, marginTop: '8px',
+                    backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)', padding: '12px', zIndex: 100,
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                    width: '200px'
+                }}>
+                    <h5 style={{ margin: '0 0 8px 0', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Advanced Operators</h5>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={searchOperators.useRegex} onChange={() => toggleSearchOperator('useRegex')} disabled={searchOperators.useBoolean} />
+                            Regex
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={searchOperators.useBoolean} onChange={() => toggleSearchOperator('useBoolean')} disabled={searchOperators.useRegex} />
+                            Boolean (AND/OR/NOT)
+                        </label>
+                    </div>
                 </div>
             )}
-            {isSearching && <div className="search-status">Searching...</div>}
+
+            {searchResults.length > 0 && (
+                <div className="search-info" style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px', textAlign: 'right' }}>
+                    {currentMatchIndex + 1} / {searchResults.length} {searchResults.length === 1 ? 'match' : 'matches'}
+                </div>
+            )}
+            {isSearching && <div className="search-status" style={{ fontSize: '0.7rem', color: 'var(--accent-color)', marginTop: '4px' }}>Searching entire document...</div>}
         </div>
     );
 };
