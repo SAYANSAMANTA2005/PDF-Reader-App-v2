@@ -2,6 +2,9 @@
 
 A modern, fast, and feature-rich PDF Reader application built with React and Vite.
 
+# LIVE APP LINK
+- **https://pdf-reader-ai-app.onrender.com/**
+
 ## Features
 
 - **High Performance**: Optimized for handling large PDF files with ease.
