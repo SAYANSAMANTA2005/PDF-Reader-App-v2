@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-
+let pdfvision = 10;
+// pdf vision scope -->21 pages = currentPage ± 10
 // Use local worker for offline support
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -39,6 +40,7 @@ export const PDFProvider = ({ children }) => {
     const [highlightThickness, setHighlightThickness] = useState(20);
     const [eraserThickness, setEraserThickness] = useState(20);
     const [isTwoPageMode, setIsTwoPageMode] = useState(false);
+    const [visiblePageRange, setVisiblePageRange] = useState({ start: 1, end: 21 }); // Pages within currentPage ± 10
 
     // ADVANCED PRO FEATURES STATE
     const [workspaces, setWorkspaces] = useState([{ id: 'default', name: 'Standard Workspace', tabs: [] }]);
@@ -185,6 +187,14 @@ export const PDFProvider = ({ children }) => {
         };
     }, []);
 
+    // Update visible page range for lazy loading (±10 pages from currentPage)
+    useEffect(() => {
+        const pageRangeOffset = pdfvision;
+        const start = Math.max(1, currentPage - pageRangeOffset);
+        const end = Math.min(numPages, currentPage + pageRangeOffset);
+        setVisiblePageRange({ start, end });
+    }, [currentPage, numPages]);
+
     // Voice State
     const [voices, setVoices] = useState([]);
     const [selectedVoice, setSelectedVoice] = useState(null);
@@ -212,6 +222,28 @@ export const PDFProvider = ({ children }) => {
         }
     }, [synth]);
 
+    // Cleanup function to release PDF resources
+    const cleanupPDFResources = useCallback(() => {
+        if (pdfDocument) {
+            try {
+                // Destroy all PDF.js resources
+                pdfDocument.destroy();
+                console.log('✅ PDF resources cleaned up');
+            } catch (err) {
+                console.warn('⚠️ Error cleaning up PDF:', err);
+            }
+        }
+
+        // Reset state
+        setPdfDocument(null);
+        setPdfFile(null);
+        setPdfText("");
+        setAnnotations({});
+        setSearchResults([]);
+        setCurrentPage(1);
+        setNumPages(0);
+    }, [pdfDocument]);
+
     const loadPDF = async (file, id = null, track = true) => {
         setIsLoading(true);
         setError(null);
@@ -222,11 +254,20 @@ export const PDFProvider = ({ children }) => {
         try {
             let loadingTask;
             if (typeof file === 'string') {
-                loadingTask = pdfjsLib.getDocument(file);
+                loadingTask = pdfjsLib.getDocument({
+                    url: file,
+                    enableWebGL: true,
+                    disableRange: false,
+                    disableAutoFetch: true,
+                    disableStream: false
+                });
                 currentFileName = file.split('/').pop();
             } else if (file instanceof File) {
                 const arrayBuffer = await file.arrayBuffer();
-                loadingTask = pdfjsLib.getDocument(arrayBuffer);
+                loadingTask = pdfjsLib.getDocument({
+                    data: arrayBuffer,
+                    enableWebGL: true
+                });
                 currentFileName = file.name;
             } else {
                 throw new Error("Invalid file format");
@@ -240,15 +281,10 @@ export const PDFProvider = ({ children }) => {
             setNumPages(pdf.numPages);
             setCurrentPage(1);
 
-            // Extract all text for integrations
-            let fullText = "";
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(" ");
-                fullText += `[Page ${i}]\n${pageText}\n\n`;
-            }
-            setPdfText(fullText);
+            // ALWAYS skip initial text extraction for performance
+            // Text will be extracted lazily as user scrolls to pages
+            setPdfText("");
+            console.log(`📄 PDF loaded (${pdf.numPages} pages) - Text extraction deferred for performance`);
 
             if (track) addToNavHistory(tabId, 1);
 
@@ -280,6 +316,11 @@ export const PDFProvider = ({ children }) => {
         setTabs(prev => {
             const tab = prev.find(t => t.id === id);
             if (tab?.isPinned) return prev; // Cannot close pinned tab
+
+            // Cleanup PDF resources if closing active tab
+            if (tab?.isActive && pdfDocument) {
+                cleanupPDFResources();
+            }
 
             const index = prev.findIndex(t => t.id === id);
             const newTabs = prev.filter(t => t.id !== id);
@@ -361,6 +402,7 @@ export const PDFProvider = ({ children }) => {
         theme,
         toggleTheme,
         loadPDF,
+        cleanupPDFResources,
         searchQuery,
         setSearchQuery,
         searchResults,
@@ -381,6 +423,8 @@ export const PDFProvider = ({ children }) => {
         setEraserThickness,
         isTwoPageMode,
         setIsTwoPageMode,
+        visiblePageRange,
+        setVisiblePageRange,
         isReading,
         setIsReading,
         startReading,

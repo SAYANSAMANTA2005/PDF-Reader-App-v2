@@ -1,8 +1,13 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { usePDF } from '../context/PDFContext';
 import * as pdfjsLib from 'pdfjs-dist';
 import AnnotationLayer from './AnnotationLayer';
 import ActiveRecallOverlay from './ActiveRecallOverlay';
+import { PDFVirtualizer, LRUPageCache, AdaptiveQualityRenderer } from '../utils/pdfVirtualizer';
+import { PageRenderScheduler } from '../utils/pdfPageScheduler';
+
+const PAGE_HEIGHT_ESTIMATE = 1100; // Default height for virtualizer
+const BUFFER_PAGES = 3; // Number of pages to buffer above/below viewport
 
 const PDFViewer = () => {
     const {
@@ -21,257 +26,483 @@ const PDFViewer = () => {
     } = usePDF();
 
     const containerRef = useRef(null);
-    const pageRefs = useRef({});
+    const [visiblePages, setVisiblePages] = useState([]);
+    const [renderingQuality, setRenderingQuality] = useState('high');
+    const isJumping = useRef(false);
+    const jumpTimeout = useRef(null);
 
-    // Scroll to current page when it changes 
-    useEffect(() => {
-        if (pageRefs.current[currentPage] && containerRef.current) {
-            // Only scroll if the page is not already visible (optimization)
-            // But for now, let's just scroll to view
-        }
-    }, [currentPage]);
+    // Initialize high-performance utilities
+    const virtualizer = useMemo(() => new PDFVirtualizer({
+        pageHeight: PAGE_HEIGHT_ESTIMATE * scale,
+        bufferPages: BUFFER_PAGES,
+        containerHeight: window.innerHeight,
+    }), [scale, isTwoPageMode]); // Re-init virtualizer when mode changes
 
-    // Handle Scroll to update current page
-    const handleScroll = useCallback(() => {
+    const scheduler = useMemo(() => new PageRenderScheduler({
+        maxConcurrentRenders: 2,
+        prioritizeVisiblePages: true,
+    }), [pdfDocument]);
+
+    const qualityManager = useMemo(() => new AdaptiveQualityRenderer({
+        highQualityDPI: 1.5,
+        lowQualityDPI: 0.8,
+        refinementDelayMs: 400
+    }), []);
+
+    const lastScrollTop = useRef(0);
+    const isScrollChange = useRef(false);
+
+    // Handle Scroll
+    const handleScroll = useCallback((force = false) => {
         if (!containerRef.current) return;
 
-        // Find the page closest to the top
-        const containerTop = containerRef.current.scrollTop;
+        const scrollY = containerRef.current.scrollTop;
         const containerHeight = containerRef.current.clientHeight;
-        const center = containerTop + containerHeight / 2;
 
-        let bestPage = 1;
-        let minDistance = Infinity;
+        // Prevent flickering from tiny jitter movements (less than 1px)
+        if (!force && Math.abs(scrollY - lastScrollTop.current) < 1 && !isJumping.current) {
+            return;
+        }
+        lastScrollTop.current = scrollY;
 
-        for (let i = 1; i <= numPages; i++) {
-            const el = pageRefs.current[i];
-            if (el) {
-                const rect = el.getBoundingClientRect();
-                const distanceFromCenter = Math.abs(rect.top + rect.height / 2 - window.innerHeight / 2);
-                if (distanceFromCenter < minDistance) {
-                    minDistance = distanceFromCenter;
-                    bestPage = i;
-                }
+        // Skip updating currentPage from scroll if we just performed a programmatic jump
+        // UNLESS forced (e.g. during an actual jump)
+        if (isJumping.current && !force) {
+            return;
+        }
+
+        // Update virtualization
+        const visible = virtualizer.getVisiblePages(scrollY, containerHeight);
+        const validVisible = visible.filter(p => p >= 0 && p < numPages);
+
+        setVisiblePages(prev => {
+            if (prev.length === validVisible.length && prev.every((v, i) => v === validVisible[i])) {
+                return prev;
             }
+            return validVisible;
+        });
+
+        // Update current page with stable offset (25% from top)
+        const scrollReference = scrollY + (containerHeight * 0.25);
+        const middlePage = Math.min(numPages, Math.max(1, virtualizer.getPageFromPosition(scrollReference) + 1));
+
+        if (middlePage !== currentPage) {
+            // Only set isScrollChange if we are NOT forcing (i.e. regular scroll)
+            if (!force) isScrollChange.current = true;
+            setCurrentPage(middlePage);
         }
 
-        if (bestPage !== currentPage) {
-            setCurrentPage(bestPage);
-        }
-    }, [numPages, currentPage, setCurrentPage]);
+        // Ensure the current page index is in the visible pages list
+        const middleIdx = middlePage - 1;
+        setVisiblePages(prev => {
+            if (!prev.includes(middleIdx)) {
+                return [...prev, middleIdx].sort((a, b) => a - b);
+            }
+            return prev;
+        });
 
-    // Attach scroll listener
+        // Adaptive quality
+        if (renderingQuality !== 'low') {
+            qualityManager.updateQuality(true);
+            setRenderingQuality('low');
+        }
+
+        if (window.renderTimeout) clearTimeout(window.renderTimeout);
+        window.renderTimeout = setTimeout(() => {
+            // CRITICAL: Final forced check to ensure virtualization didn't miss 
+            // the final scroll position due to guards/jitter.
+            handleScroll(true);
+
+            qualityManager.updateQuality(false);
+            setRenderingQuality('high');
+        }, 400);
+
+    }, [virtualizer, numPages, currentPage, setCurrentPage, qualityManager, renderingQuality]);
+
+    // Update virtualization on scale change
+    useEffect(() => {
+        virtualizer.options.pageHeight = PAGE_HEIGHT_ESTIMATE * scale;
+        handleScroll();
+    }, [scale, virtualizer, handleScroll]);
+
+    // Initial setup and event listeners
     useEffect(() => {
         const container = containerRef.current;
         if (container) {
-            container.addEventListener('scroll', handleScroll, { passive: true });
+            container.addEventListener('scroll', () => handleScroll(), { passive: true });
+            handleScroll(); // Initial calc
             return () => container.removeEventListener('scroll', handleScroll);
         }
     }, [handleScroll]);
 
-    // Imperative scroll when currentPage changes from external source (Thumbnail/Toolbar)
+    // Handle external page changes (Smart Jumping)
     useEffect(() => {
-        const el = pageRefs.current[currentPage];
-        const container = containerRef.current;
-        if (el && container) {
-            // Check if element is in view
-            const rect = el.getBoundingClientRect();
-            const inView = (
-                rect.top >= 0 &&
-                rect.bottom <= window.innerHeight
-            );
+        // If the current page changed due to a scroll event, don't trigger the jump logic
+        if (isScrollChange.current) {
+            isScrollChange.current = false;
+            return;
+        }
 
-            if (!inView) {
-                el.scrollIntoView({ behavior: 'auto', block: 'start' });
+        if (containerRef.current && currentPage) {
+            let pageOffset = currentPage - 1;
+
+            // In Two-Page mode, we jump to the "pair" start row
+            if (isTwoPageMode) {
+                pageOffset = Math.floor((currentPage - 1) / 2);
+            }
+
+            const targetPos = pageOffset * (PAGE_HEIGHT_ESTIMATE * scale);
+            const currentPos = containerRef.current.scrollTop;
+
+            // Only scroll if difference is significant (e.g. from jump or zoom)
+            if (Math.abs(currentPos - targetPos) > 10) {
+                isJumping.current = true;
+                if (jumpTimeout.current) clearTimeout(jumpTimeout.current);
+
+                // Perform the jump
+                containerRef.current.scrollTop = targetPos;
+
+                // CRITICAL: Manually update the lastScrollTop and trigger the visibility check
+                lastScrollTop.current = targetPos;
+                handleScroll(true); // Forced update to bypass isJumping check
+
+                // Extended timeout to prevent scroll event conflicts
+                jumpTimeout.current = setTimeout(() => {
+                    isJumping.current = false;
+                }, 400);
             }
         }
-    }, [currentPage]);
+        return () => {
+            if (jumpTimeout.current) clearTimeout(jumpTimeout.current);
+        };
+    }, [currentPage, scale, isTwoPageMode, handleScroll]);
+
+    if (!pdfDocument) return null;
 
     return (
-        <div className="viewer-scroll-container" ref={containerRef} style={{ width: '100%', height: '100%', overflowY: 'auto' }}>
+        <div
+            className="viewer-scroll-container"
+            ref={containerRef}
+            style={{
+                width: '100%',
+                height: 'calc(100vh - 64px)',
+                overflowY: 'auto',
+                position: 'relative',
+                background: '#525659'
+            }}
+        >
+            {/* The "Spacious" list container that defines total scroll height */}
             <div
-                className="viewer-content"
+                className="viewer-virtual-list"
                 style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    flexWrap: 'wrap',
-                    justifyContent: 'center',
-                    alignItems: 'flex-start',
-                    padding: '2rem',
-                    gap: '2rem',
-                    maxWidth: isTwoPageMode ? 'fit-content' : '100%',
-                    margin: '0 auto'
+                    height: `${(isTwoPageMode ? Math.ceil(numPages / 2) : numPages) * (PAGE_HEIGHT_ESTIMATE * scale)}px`,
+                    width: '100%',
+                    position: 'relative',
                 }}
             >
-                {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
-                    <div
-                        key={pageNum}
-                        ref={el => pageRefs.current[pageNum] = el}
-                        style={{
-                            flex: isTwoPageMode ? '0 0 auto' : '1 1 100%',
-                            display: 'flex',
-                            justifyContent: 'center'
-                        }}
-                    >
-                        <PDFPage
-                            pageNum={pageNum}
-                            pdfDocument={pdfDocument}
-                            scale={scale}
-                            rotation={rotation}
-                            isReading={isReading}
-                            onStartReading={startReading}
-                            isMathMode={isMathMode}
-                            setActiveEquation={setActiveEquation}
-                            isActiveRecallMode={isActiveRecallMode}
-                        />
-                    </div>
-                ))}
+                {/* Render only visible pages (or pairs) at absolute positions */}
+                {visiblePages.map((pageIdx) => {
+                    // Logic for Two-Page rendering: each "visible page slot" represents a row
+                    if (isTwoPageMode) {
+                        const pairIndex = pageIdx; // Row index in 2-page mode
+                        const leftPageNum = (pairIndex * 2) + 1;
+                        const rightPageNum = (pairIndex * 2) + 2;
+
+                        if (leftPageNum > numPages) return null;
+
+                        return (
+                            <div
+                                key={`pair-${pairIndex}`}
+                                style={{
+                                    position: 'absolute',
+                                    top: `${pairIndex * (PAGE_HEIGHT_ESTIMATE * scale)}px`,
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    width: '100%',
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    gap: '20px',
+                                    padding: '20px 0'
+                                }}
+                            >
+                                <PDFPage
+                                    pageNum={leftPageNum}
+                                    pdfDocument={pdfDocument}
+                                    scale={scale}
+                                    rotation={rotation}
+                                    scheduler={scheduler}
+                                    quality={renderingQuality}
+                                    isReading={isReading}
+                                    onStartReading={startReading}
+                                    isMathMode={isMathMode}
+                                    setActiveEquation={setActiveEquation}
+                                    isActiveRecallMode={isActiveRecallMode}
+                                />
+                                {rightPageNum <= numPages && (
+                                    <PDFPage
+                                        pageNum={rightPageNum}
+                                        pdfDocument={pdfDocument}
+                                        scale={scale}
+                                        rotation={rotation}
+                                        scheduler={scheduler}
+                                        quality={renderingQuality}
+                                        isReading={isReading}
+                                        onStartReading={startReading}
+                                        isMathMode={isMathMode}
+                                        setActiveEquation={setActiveEquation}
+                                        isActiveRecallMode={isActiveRecallMode}
+                                    />
+                                )}
+                            </div>
+                        );
+                    }
+
+                    // Standard Single-Page rendering
+                    return (
+                        <div
+                            key={pageIdx}
+                            style={{
+                                position: 'absolute',
+                                top: `${pageIdx * (PAGE_HEIGHT_ESTIMATE * scale)}px`,
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                width: 'fit-content',
+                                padding: '20px 0'
+                            }}
+                        >
+                            <PDFPage
+                                pageNum={pageIdx + 1}
+                                pdfDocument={pdfDocument}
+                                scale={scale}
+                                rotation={rotation}
+                                scheduler={scheduler}
+                                quality={renderingQuality}
+                                isReading={isReading}
+                                onStartReading={startReading}
+                                isMathMode={isMathMode}
+                                setActiveEquation={setActiveEquation}
+                                isActiveRecallMode={isActiveRecallMode}
+                            />
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Scroll Indicator / Quality Badge */}
+            <div style={{
+                position: 'fixed',
+                bottom: '20px',
+                right: '20px',
+                background: 'rgba(0,0,0,0.6)',
+                color: 'white',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '10px',
+                zIndex: 1000,
+                pointerEvents: 'none',
+                backdropFilter: 'blur(4px)'
+            }}>
+                {renderingQuality === 'low' ? '⚡ PERFORMANCE MODE' : '✨ HIGH QUALITY'} | Page {currentPage} of {numPages}
             </div>
         </div>
     );
 };
 
-const PDFPage = ({ pageNum, pdfDocument, scale, rotation, isReading, onStartReading, isMathMode, setActiveEquation, isActiveRecallMode }) => {
+const PDFPage = React.memo(({
+    pageNum,
+    pdfDocument,
+    scale,
+    rotation,
+    scheduler,
+    quality,
+    isReading,
+    onStartReading,
+    isMathMode,
+    setActiveEquation,
+    isActiveRecallMode
+}) => {
     const canvasRef = useRef(null);
     const textLayerRef = useRef(null);
-    const [isVisible, setIsVisible] = useState(false);
-    const containerRef = useRef(null);
-    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+    const [dimensions, setDimensions] = useState(() => {
+        // Calculate initial dimensions to prevent flickering
+        const estimatedWidth = 800 * scale;
+        const estimatedHeight = PAGE_HEIGHT_ESTIMATE * scale;
+        return { width: estimatedWidth, height: estimatedHeight };
+    });
     const [isUnlocked, setIsUnlocked] = useState(false);
+    const [isRendered, setIsRendered] = useState(false);
+    const isStableRender = useRef(false); // Changed to Ref to avoid re-render cycles
+    const renderTaskRef = useRef(null);
+    const lastRenderQuality = useRef(null);
 
-    // Intersection Observer to lazy load
-    useEffect(() => {
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    setIsVisible(true);
-                    observer.disconnect();
-                }
-            },
-            { rootMargin: '500px' }
-        );
-
-        if (containerRef.current) {
-            observer.observe(containerRef.current);
+    // Cleanup logic
+    const cleanup = useCallback(() => {
+        if (renderTaskRef.current) {
+            renderTaskRef.current.cancel();
+            renderTaskRef.current = null;
         }
-
-        return () => observer.disconnect();
+        if (canvasRef.current) {
+            const ctx = canvasRef.current.getContext('2d');
+            ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        }
+        if (textLayerRef.current) {
+            textLayerRef.current.innerHTML = '';
+        }
     }, []);
 
-    // Render Page
+    // Effect to render using the scheduler
     useEffect(() => {
-        if (!isVisible || !pdfDocument || !canvasRef.current) return;
-
-        let renderTask = null;
         let isCancelled = false;
 
-        const renderPage = async () => {
+        // Check if we can skip the heavy canvas rendering
+        const canSkipCanvas = isStableRender.current &&
+            lastRenderQuality.current === 'high' &&
+            (quality === 'high' || quality === 'low');
+
+        const renderJob = async () => {
             if (isCancelled) return;
+
             try {
                 const page = await pdfDocument.getPage(pageNum);
                 if (isCancelled) return;
 
-                const viewport = page.getViewport({ scale, rotation });
-                setDimensions({ width: viewport.width, height: viewport.height });
+                const displayViewport = page.getViewport({ scale, rotation });
+                setDimensions({ width: displayViewport.width, height: displayViewport.height });
+
+                // Update text layer if needed (it's fast and doesn't flicker the canvas)
+                if (textLayerRef.current) {
+                    renderTextLayer(page, displayViewport);
+                }
+
+                // Skip canvas redraw if already have a stable high-quality render
+                if (canSkipCanvas) return;
+
+                const viewport = page.getViewport({ scale: scale * (quality === 'low' ? 0.8 : 1.5), rotation });
 
                 const canvas = canvasRef.current;
                 if (!canvas) return;
+
                 const context = canvas.getContext('2d');
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
+                canvas.style.width = `${displayViewport.width}px`;
+                canvas.style.height = `${displayViewport.height}px`;
 
                 const renderContext = {
                     canvasContext: context,
                     viewport: viewport,
                 };
 
-                renderTask = page.render(renderContext);
+                const renderTask = page.render(renderContext);
+                renderTaskRef.current = renderTask;
                 await renderTask.promise;
 
-                if (textLayerRef.current) {
-                    const textContent = await page.getTextContent();
-                    if (isCancelled) return;
+                if (isCancelled) return;
+                setIsRendered(true);
+                lastRenderQuality.current = quality;
 
-                    textLayerRef.current.innerHTML = '';
-                    textLayerRef.current.style.width = `${viewport.width}px`;
-                    textLayerRef.current.style.height = `${viewport.height}px`;
-                    textLayerRef.current.style.setProperty('--scale-factor', scale);
+                // Mark as stable if rendered at high quality
+                if (quality === 'high') {
+                    isStableRender.current = true;
+                }
 
-                    textContent.items.forEach((item, index) => {
-                        const tx = pdfjsLib.Util.transform(
-                            pdfjsLib.Util.transform(viewport.transform, item.transform),
-                            [1, 0, 0, -1, 0, 0]
-                        );
-
-                        const style = textContent.styles[item.fontName];
-                        const fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]));
-
-                        if (style) {
-                            const span = document.createElement('span');
-                            span.textContent = item.str;
-                            span.style.left = `${tx[4]}px`;
-                            span.style.top = `${tx[5] - fontHeight}px`;
-                            span.style.fontSize = `${fontHeight}px`;
-                            span.style.fontFamily = 'sans-serif';
-                            span.style.position = 'absolute';
-                            span.style.color = 'transparent';
-                            span.style.whiteSpace = 'pre';
-                            span.style.cursor = isReading ? 'pointer' : (isMathMode ? 'crosshair' : 'text'); // Visual cue
-
-                            // Transform for width (basic approx)
-                            span.style.transform = `scaleX(${item.width / (item.str.length * fontHeight)})`;
-                            span.style.transformOrigin = '0% 0%';
-
-
-                            // Read Aloud Interaction
-                            span.onclick = (e) => {
-                                if (isReading) {
-                                    e.stopPropagation();
-                                    e.preventDefault(); // Prevent text selection
-
-                                    // Highlight spoken text? (Future)
-                                    // Start reading from this point
-                                    console.log(`Starting reading from page ${pageNum}, item ${index}`);
-                                    onStartReading(pageNum, index);
-                                } else if (isMathMode) {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    console.log(`Analyzing equation: ${item.str}`);
-                                    setActiveEquation(item.str);
-                                }
-                            };
-
-                            textLayerRef.current.appendChild(span);
-                        }
-                    });
+                // Defer text layer for high performance
+                if (quality !== 'low' && textLayerRef.current) {
+                    renderTextLayer(page, displayViewport);
                 }
 
             } catch (err) {
-                console.error("Page render error:", err);
+                if (err.name !== 'RenderingCancelledException') console.error(err);
             }
         };
 
-        renderPage();
+        const renderTextLayer = async (page, viewport) => {
+            const textContent = await page.getTextContent();
+            if (isCancelled || !textLayerRef.current) return;
+
+            textLayerRef.current.innerHTML = '';
+            textLayerRef.current.style.width = `${viewport.width}px`;
+            textLayerRef.current.style.height = `${viewport.height}px`;
+
+            const fragment = document.createDocumentFragment();
+            textContent.items.forEach((item, index) => {
+                const tx = pdfjsLib.Util.transform(
+                    pdfjsLib.Util.transform(viewport.transform, item.transform),
+                    [1, 0, 0, -1, 0, 0]
+                );
+
+                const style = textContent.styles[item.fontName];
+                const fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]));
+
+                const span = document.createElement('span');
+                span.textContent = item.str;
+                span.style.left = `${tx[4]}px`;
+                span.style.top = `${tx[5] - fontHeight}px`;
+                span.style.fontSize = `${fontHeight}px`;
+                span.style.fontFamily = 'sans-serif';
+                span.style.position = 'absolute';
+                span.style.color = 'transparent';
+                span.style.whiteSpace = 'pre';
+                span.style.cursor = isReading ? 'pointer' : (isMathMode ? 'crosshair' : 'text');
+                span.style.transform = `scaleX(${item.width / (item.str.length * fontHeight)})`;
+                span.style.transformOrigin = '0% 0%';
+
+                span.addEventListener('click', (e) => {
+                    if (isReading) onStartReading(pageNum, index);
+                    else if (isMathMode) setActiveEquation(item.str);
+                });
+
+                fragment.appendChild(span);
+            });
+            textLayerRef.current.appendChild(fragment);
+        };
+
+        // Add to scheduler queue
+        scheduler.addPageToQueue(pageNum, renderJob, quality === 'low' ? 50 : 100);
 
         return () => {
             isCancelled = true;
-            if (renderTask) {
-                renderTask.cancel();
+            // Only cancel task, don't clear canvas if we are potentially staying stable
+            if (renderTaskRef.current) {
+                renderTaskRef.current.cancel();
+                renderTaskRef.current = null;
             }
+            scheduler.cancelPage(pageNum);
         };
-    }, [isVisible, pdfDocument, pageNum, scale, rotation, isReading, onStartReading]);
+    }, [pdfDocument, pageNum, scheduler, scale, rotation, quality]);
+
+    // Reset stable state when scale or rotation changes
+    useEffect(() => {
+        isStableRender.current = false;
+        lastRenderQuality.current = null;
+    }, [scale, rotation]);
 
     return (
         <div
             className="pdf-page-container"
-            ref={containerRef}
-            data-page-number={pageNum}
             style={{
                 width: dimensions.width ? `${dimensions.width}px` : '600px',
-                height: dimensions.height ? `${dimensions.height}px` : '800px',
-                position: 'relative'
+                height: dimensions.height ? `${dimensions.height}px` : `${PAGE_HEIGHT_ESTIMATE * scale}px`,
+                position: 'relative',
+                backgroundColor: 'white',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                margin: '10px 0'
             }}
         >
+            {!isRendered && (
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#f0f0f0',
+                    color: '#999',
+                    fontSize: '12px'
+                }}>
+                    Rendering Page {pageNum}...
+                </div>
+            )}
             <canvas ref={canvasRef} />
             <div className="textLayer" ref={textLayerRef} style={{ position: 'absolute', top: 0, left: 0 }}></div>
             <AnnotationLayer width={dimensions.width} height={dimensions.height} scale={scale} pageNum={pageNum} />
@@ -281,6 +512,6 @@ const PDFPage = ({ pageNum, pdfDocument, scale, rotation, isReading, onStartRead
             )}
         </div>
     );
-};
+});
 
 export default PDFViewer;

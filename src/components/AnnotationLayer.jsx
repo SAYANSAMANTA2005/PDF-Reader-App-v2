@@ -20,13 +20,18 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
     // Get annotations for this page
     const pageAnnotations = annotations[pageNum] || [];
     const getCoordinates = (e) => {
-        if (!svgRef.current) return { x: 0, y: 0 };
+        if (!svgRef.current || !width || !height) return { x: 0, y: 0 };
         const rect = svgRef.current.getBoundingClientRect();
         return {
             x: (e.clientX - rect.left) / width,
             y: (e.clientY - rect.top) / height
         };
     };
+
+    // Early return if dimensions are invalid
+    if (!width || !height || width <= 0 || height <= 0) {
+        return null;
+    }
 
     const handleErase = (idx) => {
         if (annotationMode !== 'erase') return;
@@ -133,20 +138,29 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                 ))}
 
                 {/* Render Search Highlights */}
-                {searchResults.map((match, idx) => (
-                    match.pageNum === pageNum && (
+                {searchResults.map((match, idx) => {
+                    // Validate search match coordinates
+                    const isValidMatch = match.pageNum === pageNum &&
+                        match.x != null && match.y != null &&
+                        match.width != null && match.height != null &&
+                        !isNaN(match.x) && !isNaN(match.y) &&
+                        !isNaN(match.width) && !isNaN(match.height);
+
+                    if (!isValidMatch) return null;
+
+                    return (
                         <rect
                             key={`search-${idx}`}
                             x={match.x * width}
                             y={match.y * height - (match.height * height)} // Adjust since y is baseline usually
                             width={match.width * width}
                             height={match.height * height * 1.5} // slightly taller for visibility
-                            fill={idx === currentMatchIndex ? "#2e7d32" : "#a5d6a7"}
-                            opacity={0.4}
+                            fill={idx === currentMatchIndex ? "#1b5e20" : "#2e7d32"} // Dark Green theme
+                            opacity={idx === currentMatchIndex ? 0.6 : 0.4}
                             style={{ pointerEvents: 'none' }}
                         />
-                    )
-                ))}
+                    );
+                })}
 
                 {/* Render Current Drawing Path */}
                 {currentPath.length > 0 && annotationMode !== 'erase' && (

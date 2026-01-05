@@ -13,6 +13,7 @@ const SearchBar = () => {
 
     const [isSearching, setIsSearching] = useState(false);
     const [showOptions, setShowOptions] = useState(false);
+    const [searchProgress, setSearchProgress] = useState(0);
 
     const performAdvancedSearch = (text, query, ops) => {
         if (ops.useRegex) {
@@ -73,59 +74,74 @@ const SearchBar = () => {
         }
 
         setIsSearching(true);
+        setSearchProgress(0);
+        const allMatches = [];
+
         try {
-            const allMatches = [];
-            for (let i = 1; i <= pdfDocument.numPages; i++) {
-                const page = await pdfDocument.getPage(i);
-                const textContent = await page.getTextContent();
-                const viewport = page.getViewport({ scale: 1.0 });
+            const BATCH_SIZE = 20; // Smaller batch for coordinate calculation
+            const totalPages = pdfDocument.numPages;
 
-                // Join all items on page for whole-page boolean/regex matching
-                const fullPageText = textContent.items.map(item => item.str).join(' ');
+            for (let i = 1; i <= totalPages; i += BATCH_SIZE) {
+                const chunkEnd = Math.min(i + BATCH_SIZE - 1, totalPages);
 
-                if (performAdvancedSearch(fullPageText, searchQuery, searchOperators)) {
-                    // For UI sake, find a specific item that matches at least part of it
-                    // Or just highlight the page
-                    const bestItem = textContent.items.find(item =>
-                        performAdvancedSearch(item.str, searchQuery.split(/\s+/)[0], { useRegex: false, useBoolean: false })
-                    ) || textContent.items[0];
+                for (let pageNum = i; pageNum <= chunkEnd; pageNum++) {
+                    const page = await pdfDocument.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+                    const viewport = page.getViewport({ scale: 1.0 });
 
-                    if (bestItem) {
-                        const tx = bestItem.transform;
-                        allMatches.push({
-                            pageNum: i,
-                            x: tx[4] / viewport.width,
-                            y: (viewport.height - tx[5]) / viewport.height,
-                            width: (bestItem.width || 50) / viewport.width,
-                            height: 20 / viewport.height,
-                            text: bestItem.str
-                        });
-                    }
+                    // Simple search for coordinates within text items
+                    const query = searchQuery.toLowerCase();
+
+                    textContent.items.forEach((item) => {
+                        if (!item.str) return;
+                        const itemText = item.str.toLowerCase();
+
+                        let startIndex = 0;
+                        while ((startIndex = itemText.indexOf(query, startIndex)) !== -1) {
+                            // Calculate normalized coordinates (0 to 1)
+                            const [tx_a, tx_b, tx_c, tx_d, tx_e, tx_f] = item.transform;
+
+                            // Estimate precise substring width and offset
+                            const totalWidth = item.width || 0;
+                            const charWidth = item.str.length > 0 ? totalWidth / item.str.length : 0;
+
+                            const matchXOffset = startIndex * charWidth;
+                            const matchWidth = query.length * charWidth;
+
+                            allMatches.push({
+                                pageNum,
+                                x: (tx_e + matchXOffset) / viewport.width,
+                                y: (viewport.height - tx_f) / viewport.height,
+                                width: matchWidth / viewport.width,
+                                height: Math.abs(tx_d) / viewport.height,
+                                text: query
+                            });
+
+                            startIndex += query.length;
+                        }
+                    });
                 }
+
+                setSearchProgress(Math.round((chunkEnd / totalPages) * 100));
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
 
             setSearchResults(allMatches);
             setCurrentMatchIndex(allMatches.length > 0 ? 0 : -1);
 
             if (allMatches.length > 0) {
-                const firstMatch = allMatches[0];
-                setCurrentPage(firstMatch.pageNum);
-                scrollToMatch(firstMatch);
+                setCurrentPage(allMatches[0].pageNum);
             }
         } catch (error) {
-            console.error("Search error", error);
+            console.error("Coordinate search failed:", error);
         } finally {
             setIsSearching(false);
+            setSearchProgress(0);
         }
     };
 
     const scrollToMatch = (match) => {
-        setTimeout(() => {
-            const pageEl = document.querySelector(`[data-page-number="${match.pageNum}"]`);
-            if (pageEl) {
-                pageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }, 100);
+        setCurrentPage(match.pageNum);
     };
 
     const nextMatch = () => {
@@ -134,7 +150,6 @@ const SearchBar = () => {
         setCurrentMatchIndex(next);
         const match = searchResults[next];
         setCurrentPage(match.pageNum);
-        scrollToMatch(match);
     };
 
     const prevMatch = () => {
@@ -143,7 +158,6 @@ const SearchBar = () => {
         setCurrentMatchIndex(prev);
         const match = searchResults[prev];
         setCurrentPage(match.pageNum);
-        scrollToMatch(match);
     };
 
     return (
@@ -210,7 +224,14 @@ const SearchBar = () => {
                     {currentMatchIndex + 1} / {searchResults.length} {searchResults.length === 1 ? 'match' : 'matches'}
                 </div>
             )}
-            {isSearching && <div className="search-status" style={{ fontSize: '0.7rem', color: 'var(--accent-color)', marginTop: '4px' }}>Searching entire document...</div>}
+            {isSearching && (
+                <div className="search-status" style={{ fontSize: '0.7rem', color: 'var(--accent-color)', marginTop: '4px' }}>
+                    Scanning document: {searchProgress}%
+                    <div style={{ height: '2px', background: '#eee', marginTop: '2px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${searchProgress}%`, background: 'var(--accent-color)', transition: 'width 0.2s' }}></div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

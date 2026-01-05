@@ -1,18 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { usePDF } from './context/PDFContext';
 import Toolbar from './components/Toolbar';
 import Sidebar from './components/Sidebar';
 import PDFViewer from './components/PDFViewer';
-import { Upload, FileText, Moon, Sun, AlertCircle, XCircle, Zap } from 'lucide-react';
-import { useCognitiveOptimizer } from './utils/cognitiveOptimizer';
-import clsx from 'clsx'; // Assuming clsx might be used or standard template literal
+import { Upload, FileText, AlertCircle, XCircle, Zap } from 'lucide-react';
 
 const App = () => {
-    const { pdfDocument, loadPDF, isSidebarOpen, isLoading, error, mentorPersona, cognitiveLoad, setCognitiveLoad } = usePDF();
+    const { pdfDocument, loadPDF, isSidebarOpen, isLoading, error, cognitiveLoad, setCognitiveLoad } = usePDF();
     const [isDragging, setIsDragging] = useState(false);
-
-    // Elite Feature: Cognitive Load Monitoring
-    useCognitiveOptimizer();
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
