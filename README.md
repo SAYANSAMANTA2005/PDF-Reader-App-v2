@@ -4,6 +4,21 @@ A modern, fast, and feature-rich PDF Reader application built with React and Vit
 
 # LIVE APP LINK
 
+# (Most Advanced version)-->
+-**https://pdfreaderappv2-ibdmu5mrp-sayan-samantas-projects-662b7d85.vercel.app/**
+# Features --> Capable of handeling Large pdf files(>=1000 pages)
+```````````````
+**Have Ai features such as Summeries this pdf, Asking question from pdf,Preparing Roadmap For ur Target Exam ,keeps track of ur progress and Many more Exciting FEatures**
+1) Can upload Multiple Very large Pdf files
+2) Have Ai Features 
+3) checkout it's Slidebar Button ( just Left To Page no writting button), it is a GOLDMIne For Study
+4) Has SearchBar --> where u can search any words/phrase/sentence/ or anything u want --> it will give all the occurence of that in whole pdf WIth Hightlighted that TEXT
+5)
+
+``````````````
+
+
+# Other Older versions link -->
 - **https://pdfreaderaiapp.vercel.app/**
 - **https://pdf-reader-ai-app.onrender.com/**
   
