@@ -1,4 +1,69 @@
 /**
+ * Reconstructs text from pdf.js text items using spatial coordinates.
+ * Groups text by lines (same Y) and then sorts by X.
+ * Handles character/word spacing and paragraph breaks.
+ */
+export const reconstructTextSpacially = (items) => {
+    if (!items || items.length === 0) return "";
+
+    // Sort items by Y (descending) and then X (ascending)
+    // transform: [scaleX, skewY, skewX, scaleY, tx, ty]
+    // In PDF.js coordinate system, ty is vertical position
+    const sortedItems = [...items].sort((a, b) => {
+        const yA = a.transform[5];
+        const yB = b.transform[5];
+        // If Y is close enough, treat as same line (threshold of 2-5 units)
+        if (Math.abs(yA - yB) > 5) return yB - yA; // Sort top to bottom
+        return a.transform[4] - b.transform[4]; // Sort left to right
+    });
+
+    let fullText = "";
+    let lastY = -1;
+    let lastX = -1;
+    let lastHeight = 12; // Default fallback height
+
+    for (const item of sortedItems) {
+        const x = item.transform[4];
+        const y = item.transform[5];
+        const str = item.str;
+        const height = Math.abs(item.transform[3]); // approximate font size
+
+        // New line detection
+        if (lastY !== -1 && Math.abs(y - lastY) > (height * 0.5 || 5)) {
+            // Check for large gap (paragraph)
+            if (Math.abs(y - lastY) > (height * 1.8 || 20)) {
+                fullText += "\n\n";
+            } else {
+                fullText += "\n";
+            }
+            lastX = -1;
+        }
+
+        // Space detection within line
+        if (lastX !== -1 && str.trim().length > 0) {
+            const gap = x - lastX;
+            // If gap is positive and significant, add space. 
+            // Threshold based on font height
+            if (gap > (height * 0.1 || 2)) {
+                // Ensure we don't add multiple spaces if it already ends in space
+                if (!fullText.endsWith(" ")) {
+                    fullText += " ";
+                }
+            }
+        }
+
+        fullText += str;
+        lastY = y;
+        // Estimate next X position (current X + approximate width)
+        // items from PDF.js have 'width' property usually
+        lastX = x + (item.width || str.length * (height * 0.6));
+        lastHeight = height;
+    }
+
+    return fullText.trim();
+};
+
+/**
  * Extracts all text from a PDF document.
  * @param {Object} pdfDocument - The pdf.js document object.
  * @param {Function} onProgress - Optional callback for progress updates.
@@ -11,7 +76,7 @@ export const extractText = async (pdfDocument, onProgress) => {
     for (let i = 1; i <= numPages; i++) {
         const page = await pdfDocument.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(" ");
+        const pageText = reconstructTextSpacially(textContent.items);
         fullText += `[Page ${i}]\n${pageText}\n\n`;
 
         if (onProgress) {
@@ -34,7 +99,7 @@ export const extractTextRange = async (pdfDocument, startPage, endPage) => {
     for (let i = start; i <= end; i++) {
         const page = await pdfDocument.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(" ");
+        const pageText = reconstructTextSpacially(textContent.items);
         text += `[Page ${i}]\n${pageText}\n\n`;
     }
 
@@ -62,7 +127,7 @@ export const extractTextRangeDetailed = async (pdfDocument, startPage, endPage, 
     for (let i = start; i <= end; i++) {
         const page = await pdfDocument.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(" ");
+        const pageText = reconstructTextSpacially(textContent.items);
 
         const pageData = {
             pageNumber: i,
@@ -98,10 +163,6 @@ export const extractTextRangeDetailed = async (pdfDocument, startPage, endPage, 
 
 /**
  * Validates a page range against the document.
- * @param {number} startPage - Starting page number.
- * @param {number} endPage - Ending page number.
- * @param {number} totalPages - Total pages in document.
- * @returns {Object} - { valid: boolean, error: string|null }
  */
 export const validatePageRange = (startPage, endPage, totalPages) => {
     const start = parseInt(startPage);
@@ -128,9 +189,6 @@ export const validatePageRange = (startPage, endPage, totalPages) => {
 
 /**
  * Gets dimensions and metadata for a specific page.
- * @param {Object} pdfDocument - The pdf.js document object.
- * @param {number} pageNum - Page number (1-indexed).
- * @returns {Promise<Object>} - Page dimensions and metadata.
  */
 export const getPageDimensions = async (pdfDocument, pageNum) => {
     const page = await pdfDocument.getPage(pageNum);

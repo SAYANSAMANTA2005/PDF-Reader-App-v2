@@ -560,8 +560,6 @@ Return ONLY the formatted citation, nothing else.`;
 
 /**
  * Generate summary with page references
- * @param {string} text - Full text with page markers
- * @param {Object} pageRange - { start, end }
  */
 export const summarizeWithPageRefs = async (text, pageRange) => {
     const prompt = `Summarize the following content from pages ${pageRange.start} to ${pageRange.end}.
@@ -579,4 +577,59 @@ Format your response as:
 Keep bullet points concise and actionable.`;
 
     return callAIFunc(prompt, text.substring(0, 60000));
+};
+
+/**
+ * Refines dirty OCR text using AI for professional reconstruction.
+ * Fixes spacing, word merging, and paragraph structure.
+ */
+export const refineOCRText = async (dirtyText) => {
+    if (!dirtyText || dirtyText.trim().length === 0) return "";
+
+    const prompt = `You are a professional document reconstruction engine. 
+    Below is "dirty" text extracted from a PDF. It has the following issues:
+    1. Letters within a word are sometimes separated by spaces (e.g., "H e l l o").
+    2. Words are sometimes merged together without spaces.
+    3. Paragraph breaks and line breaks are missing or incorrect.
+    
+    Task:
+    Reconstruct this text into a professional, production-grade format. 
+    - Correct all spacing issues.
+    - Restore logical paragraph structures (use proper \n and \n\n).
+    - Ensure the text is clean and ready for academic or professional use.
+    - Maintain the original meaning and content perfectly.
+    
+    Return ONLY the cleaned text. Do not add any preamble or commentary.`;
+
+    return callAIFunc(prompt, dirtyText.substring(0, 40000));
+};
+
+/**
+ * Performs high-precision multimodal OCR on a page image.
+ * @param {string} base64Image - Base64 encoded image data.
+ */
+export const performNeuralOCR = async (base64Image) => {
+    const keys = getApiKeys();
+    if (keys.length === 0) throw new Error("No API keys found.");
+
+    const key = keys[0];
+    const model = getModel(key, "gemini-1.5-flash"); // Flash is great for OCR
+
+    const prompt = `Perform professional-grade OCR on this document image. 
+    Reconstruct the full text with perfect spacing, indentation, and paragraph structure.
+    Detect tables, headers, and footers and format them clearly in Markdown if possible.
+    The output should be clean, searchable, and professional.
+    Return ONLY the extracted text.`;
+
+    const result = await model.generateContent([
+        prompt,
+        {
+            inlineData: {
+                data: base64Image.split(',')[1],
+                mimeType: "image/png"
+            }
+        }
+    ]);
+
+    return (await result.response).text();
 };

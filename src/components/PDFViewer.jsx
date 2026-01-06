@@ -72,8 +72,11 @@ const PDFViewer = () => {
         }
 
         // Update virtualization
-        const visible = virtualizer.getVisiblePages(scrollY, containerHeight);
-        const validVisible = visible.filter(p => p >= 0 && p < numPages);
+        const visible = virtualizer.getVisiblePages(scrollY, containerHeight, isTwoPageMode);
+
+        // In Two-Page mode, indices are rows. In Single-Page, indices are pages.
+        const maxIndex = isTwoPageMode ? Math.ceil(numPages / 2) : numPages;
+        const validVisible = visible.filter(p => p >= 0 && p < maxIndex);
 
         setVisiblePages(prev => {
             if (prev.length === validVisible.length && prev.every((v, i) => v === validVisible[i])) {
@@ -84,7 +87,10 @@ const PDFViewer = () => {
 
         // Update current page with stable offset (25% from top)
         const scrollReference = scrollY + (containerHeight * 0.25);
-        const middlePage = Math.min(numPages, Math.max(1, virtualizer.getPageFromPosition(scrollReference) + 1));
+        const middleRowIdx = virtualizer.getPageFromPosition(scrollReference);
+        const middlePage = isTwoPageMode
+            ? Math.min(numPages, (middleRowIdx * 2) + 1)
+            : Math.min(numPages, Math.max(1, middleRowIdx + 1));
 
         if (middlePage !== currentPage) {
             // Only set isScrollChange if we are NOT forcing (i.e. regular scroll)
@@ -92,10 +98,10 @@ const PDFViewer = () => {
             setCurrentPage(middlePage);
         }
 
-        // Ensure the current page index is in the visible pages list
-        const middleIdx = middlePage - 1;
+        // Ensure the current index is in the visible list
+        const middleIdx = isTwoPageMode ? middleRowIdx : middlePage - 1;
         setVisiblePages(prev => {
-            if (!prev.includes(middleIdx)) {
+            if (!prev.includes(middleIdx) && middleIdx >= 0 && middleIdx < maxIndex) {
                 return [...prev, middleIdx].sort((a, b) => a - b);
             }
             return prev;

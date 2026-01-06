@@ -4,4 +4,158 @@
 import { useState, useRef, useCallback } from 'react';
 import { runFullPreflightCheck, cleanupPDFMemory, forceGarbageCollection, handleBlockedPDF } from '../utils/pdfPreflightCheck';
 
-/**\n * Hook for PDF safety checking\n * Manages: preflight checks, loading states, warnings, memory cleanup\n */\nexport const usePDFSafetyGuard = (config = null) => {\n    const [isChecking, setIsChecking] = useState(false);\n    const [checkProgress, setCheckProgress] = useState(null);\n    const [preflightResult, setPreflightResult] = useState(null);\n    const [showWarning, setShowWarning] = useState(false);\n    const [memoryStatus, setMemoryStatus] = useState(null);\n    const abortControllerRef = useRef(null);\n    const fileInputRef = useRef(null);\n    \n    /**\n     * Cleanup PDF file from memory\n     */\n    const cleanupFile = useCallback(async () => {\n        try {\n            setMemoryStatus('Cleaning up PDF from memory...');\n            \n            // Clear file input\n            if (fileInputRef.current) {\n                fileInputRef.current.value = '';\n            }\n            \n            // Trigger garbage collection\n            forceGarbageCollection();\n            \n            setMemoryStatus('PDF successfully removed from memory');\n            setTimeout(() => setMemoryStatus(null), 3000);\n            \n            return true;\n        } catch (error) {\n            console.error('Error in cleanupFile:', error);\n            return false;\n        }\n    }, []);\n    \n    /**\n     * Run preflight check on PDF\n     */\n    const check = useCallback(async (fileOrUrl) => {\n        abortControllerRef.current = new AbortController();\n        setIsChecking(true);\n        setCheckProgress(null);\n        setMemoryStatus(null);\n        \n        try {\n            const result = await runFullPreflightCheck(fileOrUrl, {\n                config,\n                onProgress: (message) => setCheckProgress(message),\n                abortSignal: abortControllerRef.current.signal,\n            });\n            \n            setPreflightResult(result);\n            \n            // Handle blocked PDFs with cleanup\n            if (result.status === 'BLOCKED') {\n                setShowWarning(true);\n                \n                // Cleanup and notify\n                await handleBlockedPDF(result, cleanupFile);\n                setMemoryStatus('⚠️ Large PDF detected - Removed from memory');\n            } else if (result.riskAssessment?.warnings?.length > 0) {\n                setShowWarning(true);\n            }\n            \n            return result;\n        } catch (error) {\n            console.error('Check error:', error);\n            return null;\n        } finally {\n            setIsChecking(false);\n            setCheckProgress(null);\n        }\n    }, [config, cleanupFile]);\n    \n    /**\n     * Cancel ongoing check and cleanup\n     */\n    const cancel = useCallback(async () => {\n        abortControllerRef.current?.abort();\n        setIsChecking(false);\n        setCheckProgress(null);\n        await cleanupFile();\n    }, [cleanupFile]);\n    \n    /**\n     * Reset state and cleanup\n     */\n    const reset = useCallback(async () => {\n        setPreflightResult(null);\n        setShowWarning(false);\n        setCheckProgress(null);\n        setMemoryStatus(null);\n        await cleanupFile();\n    }, [cleanupFile]);\n    \n    return {\n        isChecking,\n        checkProgress,\n        preflightResult,\n        showWarning,\n        memoryStatus,\n        check,\n        cancel,\n        reset,\n        cleanupFile,\n        setShowWarning,\n        fileInputRef,\n    };\n};\n\n/**\n * Format result for user display\n */\nexport const formatPreflightResult = (result) => {\n    switch (result.status) {\n        case 'ALLOWED':\n            return {\n                isSafe: true,\n                message: '✅ PDF is safe to load',\n                canProceed: true,\n            };\n            \n        case 'BLOCKED':\n            return {\n                isSafe: false,\n                message: '⚠️ PDF exceeds safe limits',\n                canProceed: false,\n                reason: result.reason,\n            };\n            \n        case 'CANCELLED':\n            return {\n                isSafe: null,\n                message: '⏹️ Check cancelled',\n                canProceed: false,\n            };\n            \n        case 'ERROR':\n            return {\n                isSafe: null,\n                message: `❌ Error: ${result.error}`,\n                canProceed: false,\n            };\n            \n        default:\n            return {\n                isSafe: null,\n                message: 'Unknown result',\n                canProceed: false,\n            };\n    }\n};\n
+/**
+ * Hook for PDF safety checking
+ * Manages: preflight checks, loading states, warnings, memory cleanup
+ */
+export const usePDFSafetyGuard = (config = null) => {
+    const [isChecking, setIsChecking] = useState(false);
+    const [checkProgress, setCheckProgress] = useState(null);
+    const [preflightResult, setPreflightResult] = useState(null);
+    const [showWarning, setShowWarning] = useState(false);
+    const [memoryStatus, setMemoryStatus] = useState(null);
+    const abortControllerRef = useRef(null);
+    const fileInputRef = useRef(null);
+
+    /**
+     * Cleanup PDF file from memory
+     */
+    const cleanupFile = useCallback(async () => {
+        try {
+            setMemoryStatus('Cleaning up PDF from memory...');
+
+            // Clear file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+
+            // Trigger garbage collection
+            forceGarbageCollection();
+
+            setMemoryStatus('PDF successfully removed from memory');
+            setTimeout(() => setMemoryStatus(null), 3000);
+
+            return true;
+        } catch (error) {
+            console.error('Error in cleanupFile:', error);
+            return false;
+        }
+    }, []);
+
+    /**
+     * Run preflight check on PDF
+     */
+    const check = useCallback(async (fileOrUrl) => {
+        abortControllerRef.current = new AbortController();
+        setIsChecking(true);
+        setCheckProgress(null);
+        setMemoryStatus(null);
+
+        try {
+            const result = await runFullPreflightCheck(fileOrUrl, {
+                config,
+                onProgress: (message) => setCheckProgress(message),
+                abortSignal: abortControllerRef.current.signal,
+            });
+
+            setPreflightResult(result);
+
+            // Handle blocked PDFs with cleanup
+            if (result.status === 'BLOCKED') {
+                setShowWarning(true);
+
+                // Cleanup and notify
+                await handleBlockedPDF(result, cleanupFile);
+                setMemoryStatus('⚠️ Large PDF detected - Removed from memory');
+            } else if (result.riskAssessment?.warnings?.length > 0) {
+                setShowWarning(true);
+            }
+
+            return result;
+        } catch (error) {
+            console.error('Check error:', error);
+            return null;
+        } finally {
+            setIsChecking(false);
+            setCheckProgress(null);
+        }
+    }, [config, cleanupFile]);
+
+    /**
+     * Cancel ongoing check and cleanup
+     */
+    const cancel = useCallback(async () => {
+        abortControllerRef.current?.abort();
+        setIsChecking(false);
+        setCheckProgress(null);
+        await cleanupFile();
+    }, [cleanupFile]);
+
+    /**
+     * Reset state and cleanup
+     */
+    const reset = useCallback(async () => {
+        setPreflightResult(null);
+        setShowWarning(false);
+        setCheckProgress(null);
+        setMemoryStatus(null);
+        await cleanupFile();
+    }, [cleanupFile]);
+
+    return {
+        isChecking,
+        checkProgress,
+        preflightResult,
+        showWarning,
+        memoryStatus,
+        check,
+        cancel,
+        reset,
+        cleanupFile,
+        setShowWarning,
+        fileInputRef,
+    };
+};
+
+/**
+ * Format result for user display
+ */
+export const formatPreflightResult = (result) => {
+    switch (result.status) {
+        case 'ALLOWED':
+            return {
+                isSafe: true,
+                message: '✅ PDF is safe to load',
+                canProceed: true,
+            };
+
+        case 'BLOCKED':
+            return {
+                isSafe: false,
+                message: '⚠️ PDF exceeds safe limits',
+                canProceed: false,
+                reason: result.reason,
+            };
+
+        case 'CANCELLED':
+            return {
+                isSafe: null,
+                message: '⏹️ Check cancelled',
+                canProceed: false,
+            };
+
+        case 'ERROR':
+            return {
+                isSafe: null,
+                message: `❌ Error: ${result.error}`,
+                canProceed: false,
+            };
+
+        default:
+            return {
+                isSafe: null,
+                message: 'Unknown result',
+                canProceed: false,
+            };
+    }
+};

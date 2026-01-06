@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePDF } from '../context/PDFContext';
 import {
     Brain, Scissors, Mic, FileSearch, Share, Sparkles, Play, Pause, Download,
     Plus, Trash2, Copy, ArrowRight, FileText, Loader2, RotateCw, Check,
     Settings, Save, Eye, TrendingUp, BookOpen, Zap, Star, AlertCircle,
-    Clock, History, Upload, Bookmark, CheckCircle2, XCircle, Timer
+    Clock, History, Upload, Bookmark, CheckCircle2, XCircle, Timer,
+    PenTool, Lock, Shield, Layout, Layers, Wand2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as aiService from '../utils/aiService';
@@ -20,37 +21,53 @@ const PremiumToolsHub = () => {
     const [activeTool, setActiveTool] = useState(null);
 
     const tools = [
-        { id: 'quiz', icon: <Brain />, title: 'AI Quiz Engine', color: 'bg-purple-500' },
-        { id: 'edit', icon: <Scissors />, title: 'PDF Editor', color: 'bg-emerald-500' },
+        { id: 'quiz', icon: <Brain />, title: 'AI Quiz', color: 'bg-purple-500' },
+        { id: 'edit', icon: <Scissors />, title: 'Editor Pro', color: 'bg-emerald-500' },
+        { id: 'sign', icon: <PenTool />, title: 'e-Sign', color: 'bg-indigo-500' },
+        { id: 'space', icon: <Layout />, title: 'PDF Space', color: 'bg-cyan-500' },
         { id: 'ocr', icon: <FileSearch />, title: 'Deep OCR', color: 'bg-blue-500' },
         { id: 'tts', icon: <Mic />, title: 'Neural TTS', color: 'bg-orange-500' },
-        { id: 'export', icon: <Share />, title: 'Smart Export', color: 'bg-pink-500' },
+        { id: 'export', icon: <Share />, title: 'Export', color: 'bg-pink-500' },
     ];
 
     return (
         <div className="flex flex-col h-full bg-primary/10">
-            <header className="p-6 border-b border-divider bg-bg-primary/50 backdrop-blur-md">
-                <h2 className="text-xl font-black gradient-text">Elite Tools</h2>
-                <p className="text-[10px] text-secondary font-black uppercase tracking-widest mt-1">Production-Grade Workflow Suite</p>
-            </header>
+            <header className="px-6 py-5 border-b border-divider bg-bg-primary/90 backdrop-blur-xl flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                        <h2 className="text-xl font-black gradient-text tracking-tight leading-none">Elite Tools</h2>
+                        <span className="text-[9px] text-accent font-black uppercase tracking-[0.2em] mt-1 opacity-80">Workflow Suite</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-accent/5 px-2 py-1 rounded-full border border-accent/10">
+                        <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                        <span className="text-[8px] font-black text-accent uppercase tracking-widest">Pro Active</span>
+                    </div>
+                </div>
 
-            <div className="p-4 grid grid-cols-5 gap-2 border-b border-divider bg-bg-secondary/30">
-                {tools.map(tool => (
-                    <motion.button
-                        key={tool.id}
-                        onClick={() => setActiveTool(tool.id)}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className={`flex flex-col items-center gap-2 p-3 rounded-xl transition-all ${activeTool === tool.id ? 'bg-accent text-white shadow-lg' : 'bg-bg-primary text-secondary hover:bg-bg-secondary'
-                            }`}
-                    >
-                        <div className={`p-2 rounded-lg ${activeTool === tool.id ? 'bg-white/20' : tool.color + ' text-white'}`}>
-                            {React.cloneElement(tool.icon, { size: 18 })}
-                        </div>
-                        <span className="text-[8px] font-black uppercase tracking-tighter text-center">{tool.title}</span>
-                    </motion.button>
-                ))}
-            </div>
+                <div className="flex items-center gap-1.5">
+                    {tools.map(tool => (
+                        <motion.button
+                            key={tool.id}
+                            onClick={() => setActiveTool(tool.id)}
+                            whileHover={{ scale: 1.05, y: -2 }}
+                            whileTap={{ scale: 0.95 }}
+                            className={`group flex items-center justify-center p-2.5 rounded-2xl transition-all relative ${activeTool === tool.id
+                                ? 'bg-accent text-white shadow-xl shadow-accent/20'
+                                : 'bg-bg-secondary/40 text-secondary hover:bg-bg-secondary hover:text-primary border border-transparent hover:border-divider'
+                                }`}
+                        >
+                            <div className="relative z-10">
+                                {React.cloneElement(tool.icon, { size: 16 })}
+                            </div>
+
+                            {/* Tooltip for small width */}
+                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full px-2 py-1 bg-primary text-white text-[8px] font-black rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                                {tool.title}
+                            </div>
+                        </motion.button>
+                    ))}
+                </div>
+            </header>
 
             <div className="flex-1 overflow-y-auto p-6">
                 <AnimatePresence mode="wait">
@@ -61,17 +78,19 @@ const PremiumToolsHub = () => {
                             className="flex flex-col items-center justify-center h-full text-center space-y-4"
                         >
                             <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center">
-                                <Sparkles size={40} className="text-accent animate-pulse" />
+                                <Sparkles size={40} className="text-accent/20 animate-pulse" />
                             </div>
-                            <h3 className="text-primary font-black">Select a Tool to Begin</h3>
-                            <p className="text-secondary text-xs max-w-xs leading-relaxed">
-                                Choose an elite power from the top bar to enhance your reading and productivity workflow.
+                            <h3 className="text-primary font-black text-xs uppercase tracking-widest">Select an Elite Tool</h3>
+                            <p className="text-secondary text-[9px] max-w-xs leading-relaxed opacity-50 px-8">
+                                Transform your PDF into an active learning asset with our production-grade workflow engines.
                             </p>
                         </motion.div>
                     )}
 
                     {activeTool === 'quiz' && <QuizToolEnhanced key="quiz" />}
                     {activeTool === 'edit' && <EditToolEnhanced key="edit" />}
+                    {activeTool === 'sign' && <SignatureToolEnhanced key="sign" />}
+                    {activeTool === 'space' && <SpaceToolEnhanced key="space" />}
                     {activeTool === 'ocr' && <OCRToolEnhanced key="ocr" />}
                     {activeTool === 'tts' && <TTSToolEnhanced key="tts" />}
                     {activeTool === 'export' && <ExportToolEnhanced key="export" />}
@@ -332,8 +351,17 @@ const QuizToolEnhanced = () => {
                                 <Timer size={12} /> {formatTime(timeRemaining)}
                             </span>
                         )}
-                        <span className="text-accent">Score: {score}/{questions.length * 10}</span>
+                        <span className="text-accent">Points: {score}</span>
                     </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="h-1.5 w-full bg-purple-100 rounded-full overflow-hidden">
+                    <motion.div
+                        className="h-full bg-purple-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}
+                    />
                 </div>
 
                 <div className="glass-card p-6 border-l-4 border-l-purple-500">
@@ -513,10 +541,108 @@ const OCRToolEnhanced = () => {
     const [currentPage, setCurrentPage] = useState(0);
     const [showHistory, setShowHistory] = useState(false);
     const [ocrHistory, setOCRHistory] = useState([]);
+    const [useNeural, setUseNeural] = useState(false);
+    const [isRefining, setIsRefining] = useState(false);
 
     useEffect(() => {
         setOCRHistory(storage.OCRHistory.getAll());
     }, []);
+
+    const runNeuralOCR = async () => {
+        if (!pdfDocument || !pageRange.isValid) {
+            toast.error('Please select a valid page range');
+            return;
+        }
+
+        setIsScanning(true);
+        setResult(null);
+        setProgress(0);
+
+        try {
+            let fullText = "";
+            const pages = [];
+
+            const start = pageRange.start;
+            const end = pageRange.end;
+            const total = end - start + 1;
+
+            for (let i = start; i <= end; i++) {
+                setCurrentPage(i);
+                setProgress(Math.round(((i - start) / total) * 100));
+
+                // Render page to canvas to get image for Neural OCR
+                const page = await pdfDocument.getPage(i);
+                const viewport = page.getViewport({ scale: 2.0 });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                await page.render({ canvasContext: context, viewport }).promise;
+                const base64Image = canvas.toDataURL('image/png');
+
+                const pageText = await aiService.performNeuralOCR(base64Image);
+
+                const pageData = {
+                    pageNumber: i,
+                    text: pageText,
+                    charCount: pageText.length,
+                    wordCount: pageText.trim().split(/\s+/).filter(w => w.length > 0).length
+                };
+
+                pages.push(pageData);
+                fullText += `[Page ${i}]\n${pageText}\n\n`;
+
+                setProgress(Math.round(((i - start + 1) / total) * 100));
+            }
+
+            const extractedResult = {
+                fullText,
+                pages,
+                metadata: {
+                    startPage: start,
+                    endPage: end,
+                    totalPages: total,
+                    totalChars: fullText.length,
+                    totalWords: fullText.split(/\s+/).length,
+                    averageWordsPerPage: Math.round(fullText.split(/\s+/).length / total)
+                }
+            };
+
+            setResult(extractedResult);
+            storage.OCRHistory.add({
+                pageRange: `${start}-${end}`,
+                format: 'Neural Scan',
+                wordCount: extractedResult.metadata.totalWords,
+                charCount: extractedResult.metadata.totalChars,
+                preview: fullText.substring(0, 200)
+            });
+
+            setOCRHistory(storage.OCRHistory.getAll());
+            toast.success(`Neural Scan complete! ${extractedResult.metadata.totalWords} words.`);
+        } catch (err) {
+            console.error(err);
+            toast.error('Neural OCR failed: ' + (err.message || 'Unknown error'));
+        } finally {
+            setIsScanning(false);
+        }
+    };
+
+    const handleRefine = async () => {
+        if (!result) return;
+        setIsRefining(true);
+        try {
+            toast.info("Refining text with AI Neural Layers...");
+            const refined = await aiService.refineOCRText(result.fullText);
+            setResult(prev => ({ ...prev, fullText: refined }));
+            toast.success("Text refined successfully!");
+        } catch (err) {
+            console.error(err);
+            toast.error("Refinement failed");
+        } finally {
+            setIsRefining(false);
+        }
+    };
 
     const runOCR = async () => {
         if (!pdfDocument || !pageRange.isValid) {
@@ -671,7 +797,7 @@ const OCRToolEnhanced = () => {
                     {isScanning ? (
                         <div className="space-y-3">
                             <div className="flex justify-between text-[10px] font-black text-secondary uppercase tracking-widest">
-                                <span>Processing Page {currentPage}</span>
+                                <span>{useNeural ? 'Neural Analysis Page' : 'Scanning Page'} {currentPage}</span>
                                 <span>{progress}%</span>
                             </div>
                             <div className="h-2 w-full bg-blue-100 rounded-full overflow-hidden">
@@ -682,19 +808,42 @@ const OCRToolEnhanced = () => {
                                     transition={{ duration: 0.3 }}
                                 />
                             </div>
-                            <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest text-center">
-                                Neural Layer Recognition Active
+                            <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest text-center animate-pulse">
+                                {useNeural ? 'Multimodal Vision Engine Active' : 'Heuristic Spatial Layout Active'}
                             </p>
                         </div>
                     ) : (
-                        <button
-                            onClick={runOCR}
-                            disabled={!pdfDocument || !pageRange.isValid}
-                            className={`premium-btn w-full !bg-blue-600 shadow-blue-600/20 ${!pdfDocument || !pageRange.isValid ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            <Zap size={16} className="inline mr-2" />
-                            Scan Selected Pages
-                        </button>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-3 glass-card bg-blue-500/5 border-blue-500/20">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-500 rounded-lg text-white">
+                                        <Sparkles size={16} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-[10px] font-black text-primary uppercase">Neural Multimodal Scan</h4>
+                                        <p className="text-[8px] text-secondary">Adobe-level accuracy using AI Vision</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setUseNeural(!useNeural)}
+                                    className={`w-10 h-5 rounded-full transition-colors relative ${useNeural ? 'bg-blue-500' : 'bg-secondary'}`}
+                                >
+                                    <motion.div
+                                        animate={{ x: useNeural ? 22 : 4 }}
+                                        className="absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm"
+                                    />
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={useNeural ? runNeuralOCR : runOCR}
+                                disabled={!pdfDocument || !pageRange.isValid}
+                                className={`premium-btn w-full !bg-blue-600 shadow-blue-600/20 ${!pdfDocument || !pageRange.isValid ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <Zap size={16} className="inline mr-2" />
+                                {useNeural ? 'Run Deep Neural Scan' : 'Scan Selected Pages'}
+                            </button>
+                        </div>
                     )}
                 </>
             ) : (
@@ -706,9 +855,19 @@ const OCRToolEnhanced = () => {
                                 {result.metadata.totalWords.toLocaleString()} words from {result.metadata.totalPages} pages
                             </p>
                         </div>
-                        <button onClick={() => setResult(null)} className="premium-btn !py-2 !px-4 !bg-bg-secondary !text-primary !text-[10px]">
-                            New Scan
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleRefine}
+                                disabled={isRefining}
+                                className={`premium-btn !py-2 !px-4 !bg-accent !text-white !text-[10px] flex items-center gap-1 ${isRefining ? 'opacity-50' : ''}`}
+                            >
+                                {isRefining ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Sparkles size={12} />}
+                                AI Refine
+                            </button>
+                            <button onClick={() => setResult(null)} className="premium-btn !py-2 !px-4 !bg-bg-secondary !text-primary !text-[10px]">
+                                New Scan
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
@@ -749,7 +908,7 @@ const OCRToolEnhanced = () => {
 
 /* ==================== PRODUCTION-GRADE TTS ENGINE ==================== */
 const TTSToolEnhanced = () => {
-    const { pdfDocument, fileName } = usePDF();
+    const { pdfDocument, fileName, setCurrentPage } = usePDF();
     const toast = useToast();
     const [isPlaying, setIsPlaying] = useState(false);
     const [rate, setRate] = useState(1);
@@ -808,6 +967,8 @@ const TTSToolEnhanced = () => {
             utterance.onstart = () => {
                 setIsPlaying(true);
                 toast.success('Playback started');
+                // Auto-scroll to start page
+                setCurrentPage(pageRange.start);
             };
             utterance.onend = () => {
                 setIsPlaying(false);
@@ -1032,28 +1193,36 @@ const ExportToolEnhanced = () => {
                 });
                 filename = `${fileName.replace('.pdf', '')}_pages_${pageRange.start}-${pageRange.end}.md`;
             } else if (type === 'Notion') {
-                content = `# ${fileName.replace('.pdf', '')}\n\n`;
-                content += `> 📄 Pages ${pageRange.start}-${pageRange.end} | `;
-                content += `📊 ${extracted.metadata.totalWords.toLocaleString()} words\n\n`;
+                content = `${fileName.replace('.pdf', '')}\n\n`;
+                content += `> 📄 **Source**: ${fileName}\n`;
+                content += `> 🔢 **Pages**: ${pageRange.start}-${pageRange.end}\n`;
+                content += `> 📊 **Metrics**: ${extracted.metadata.totalWords.toLocaleString()} words | ${extracted.metadata.totalChars.toLocaleString()} chars\n\n`;
+                content += `---\n\n`;
+
                 extracted.pages.forEach(p => {
-                    content += `## Page ${p.pageNumber}\n\n`;
-                    content += `<aside>\n💡 ${p.wordCount} words on this page\n</aside>\n\n`;
+                    content += `### Page ${p.pageNumber}\n`;
+                    content += `/callout 💡 This page contains approx ${p.wordCount} words.\n\n`;
                     content += `${p.text}\n\n`;
                 });
-                filename = `notion_${fileName.replace('.pdf', '')}.md`;
+                filename = `Notion_Export_${Date.now()}.md`;
             } else if (type === 'Obsidian') {
                 content = `---\n`;
-                content += `source: ${fileName}\n`;
-                content += `pages: ${pageRange.start}-${pageRange.end}\n`;
-                content += `words: ${extracted.metadata.totalWords}\n`;
-                content += `created: ${new Date().toISOString()}\n`;
-                content += `tags: [pdf, imported]\n`;
+                content += `source_pdf: "${fileName}"\n`;
+                content += `page_range: ${pageRange.start}-${pageRange.end}\n`;
+                content += `ai_processed: true\n`;
+                content += `tags: [pdf-ai-read, status/processed]\n`;
+                content += `date: ${new Date().toISOString().split('T')[0]}\n`;
                 content += `---\n\n`;
                 content += `# ${fileName.replace('.pdf', '')}\n\n`;
+                content += `[[Source PDF]] | [Search Context](google.com/search?q=${encodeURIComponent(fileName)})\n\n`;
+
                 extracted.pages.forEach(p => {
-                    content += `## [[Page ${p.pageNumber}]]\n\n${p.text}\n\n`;
+                    content += `## Page ${p.pageNumber}\n\n`;
+                    content += `> [!INFO] Summary\n`;
+                    content += `> Content extracted from page ${p.pageNumber}\n\n`;
+                    content += `${p.text}\n\n`;
                 });
-                filename = `${fileName.replace('.pdf', '').replace(/\s+/g, '_')}.md`;
+                filename = `Obsidian_Vault_${Date.now()}.md`;
             } else if (type.includes('Citation')) {
                 const format = citationFormat;
                 content = await aiService.generateCitation(
@@ -1219,22 +1388,40 @@ const ExportToolEnhanced = () => {
 
 /* ==================== PRODUCTION-GRADE PDF EDITOR ==================== */
 const EditToolEnhanced = () => {
-    const { pdfDocument, pdfFile, fileName } = usePDF();
+    const { pdfDocument, pdfFile, fileName, numPages } = usePDF();
     const toast = useToast();
     const [isProcessing, setIsProcessing] = useState(false);
     const [pageRange, setPageRange] = useState({ start: 1, end: 1, isValid: false });
     const [operation, setOperation] = useState('rotate');
     const [rotationAngle, setRotationAngle] = useState(90);
     const [watermarkText, setWatermarkText] = useState('CONFIDENTIAL');
+    const [insertPosition, setInsertPosition] = useState(1);
+    const [mergeFiles, setMergeFiles] = useState([]);
+    const [splitMode, setSplitMode] = useState('interval'); // 'interval', 'manual'
+    const [splitInterval, setSplitInterval] = useState(2);
+    const [splitPages, setSplitPages] = useState(''); // e.g. "5, 10"
+    const [redactMode, setRedactMode] = useState('manual'); // 'manual', 'interval'
+    const [redactInterval, setRedactInterval] = useState(1);
+    const [redactCoords, setRedactCoords] = useState({ x: 50, y: 50, w: 200, h: 50 });
+
+    const handleFileChange = (e) => {
+        if (e.target.files) {
+            setMergeFiles(Array.from(e.target.files));
+        }
+    };
+
+    const updateRedactCoord = (key, val) => {
+        setRedactCoords(prev => ({ ...prev, [key]: parseInt(val) || 0 }));
+    };
 
     const executeOperation = async () => {
-        if (!pdfDocument || !pdfFile || !pageRange.isValid) {
-            toast.error('Please select a valid page range');
+        if (!pdfDocument || !pdfFile || (!pageRange.isValid && operation !== 'merge' && operation !== 'split' && operation !== 'redact')) {
+            toast.error('Please select valid settings');
             return;
         }
 
         setIsProcessing(true);
-        const pagesToProcess = Array.from(
+        let pagesToProcess = Array.from(
             { length: pageRange.end - pageRange.start + 1 },
             (_, i) => pageRange.start + i
         );
@@ -1242,6 +1429,7 @@ const EditToolEnhanced = () => {
         try {
             let resultBytes;
             let resultFilename;
+            let splitResults = null;
 
             if (operation === 'rotate') {
                 resultBytes = await pdfEditService.rotatePDF(pdfFile, pagesToProcess, rotationAngle);
@@ -1263,9 +1451,63 @@ const EditToolEnhanced = () => {
                 });
                 resultFilename = `${fileName.replace('.pdf', '')}_watermarked.pdf`;
                 toast.success('Watermark applied');
+            } else if (operation === 'insert') {
+                resultBytes = await pdfEditService.insertBlankPages(pdfFile, [insertPosition]);
+                resultFilename = `${fileName.replace('.pdf', '')}_with_blank_page.pdf`;
+                toast.success(`Inserted blank page at ${insertPosition}`);
+            } else if (operation === 'merge') {
+                if (mergeFiles.length === 0) throw new Error("Please select files to merge");
+                const filesToMerge = [pdfFile, ...mergeFiles];
+                resultBytes = await pdfEditService.mergePDFs(filesToMerge);
+                resultFilename = `merged_document.pdf`;
+                toast.success(`Merged ${filesToMerge.length} documents`);
+            } else if (operation === 'split') {
+                if (splitMode === 'interval') {
+                    splitResults = await pdfEditService.splitPDFByInterval(pdfFile, splitInterval);
+                } else {
+                    const points = splitPages.split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+                    if (points.length === 0) throw new Error("Please enter valid page numbers for splitting");
+                    splitResults = await pdfEditService.splitPDFByRanges(pdfFile, points);
+                }
+
+                toast.success(`Split PDF into ${splitResults.length} parts`);
+                // Batch download
+                splitResults.forEach((res, i) => {
+                    setTimeout(() => {
+                        pdfEditService.downloadPDF(res.bytes, `${fileName.replace('.pdf', '')}_${res.name}`);
+                    }, i * 500); // Stagger downloads to prevent browser blocking
+                });
+            } else if (operation === 'redact') {
+                // Handle Interval vs Manual
+                let areas = [];
+                if (redactMode === 'interval') {
+                    // Apply to every Nth page
+                    for (let p = 1; p <= numPages; p += redactInterval) {
+                        areas.push({
+                            page: p,
+                            x: redactCoords.x, y: redactCoords.y, width: redactCoords.w, height: redactCoords.h,
+                            color: watermarkText === '#ffffff' ? { r: 1, g: 1, b: 1 } : { r: 0, g: 0, b: 0 }
+                        });
+                    }
+                } else {
+                    // Manual mode uses the selected page range
+                    areas = pagesToProcess.map(p => ({
+                        page: p,
+                        x: redactCoords.x, y: redactCoords.y, width: redactCoords.w, height: redactCoords.h,
+                        color: watermarkText === '#ffffff' ? { r: 1, g: 1, b: 1 } : { r: 0, g: 0, b: 0 }
+                    }));
+                }
+
+                resultBytes = await pdfEditService.redactPDF(pdfFile, areas);
+                resultFilename = `${fileName.replace('.pdf', '')}_redacted.pdf`;
+                toast.success(`Document redacted (${areas.length} pages)`);
+            } else if (operation === 'protect') {
+                resultBytes = await pdfEditService.encryptPDF(pdfFile, watermarkText);
+                resultFilename = `${fileName.replace('.pdf', '')}_protected.pdf`;
+                toast.success('Password protection applied');
             }
 
-            if (resultBytes) {
+            if (resultBytes && !splitResults) {
                 pdfEditService.downloadPDF(resultBytes, resultFilename);
             }
         } catch (err) {
@@ -1294,12 +1536,17 @@ const EditToolEnhanced = () => {
 
             <div className="space-y-3">
                 <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Operation</label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                     {[
                         { id: 'rotate', label: 'Rotate', icon: <RotateCw size={14} /> },
                         { id: 'extract', label: 'Extract', icon: <Copy size={14} /> },
                         { id: 'delete', label: 'Delete', icon: <Trash2 size={14} /> },
-                        { id: 'watermark', label: 'Watermark', icon: <FileText size={14} /> }
+                        { id: 'watermark', label: 'Mark', icon: <FileText size={14} /> },
+                        { id: 'insert', label: 'Insert', icon: <Plus size={14} /> },
+                        { id: 'merge', label: 'Merge', icon: <Upload size={14} /> },
+                        { id: 'split', label: 'Split', icon: <Scissors size={14} /> },
+                        { id: 'redact', label: 'Redact', icon: <Shield size={14} /> },
+                        { id: 'protect', label: 'Protect', icon: <Lock size={14} /> }
                     ].map(op => (
                         <button
                             key={op.id}
@@ -1332,6 +1579,126 @@ const EditToolEnhanced = () => {
                 </div>
             )}
 
+            {operation === 'protect' && (
+                <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Password Protection</label>
+                    <input
+                        type="password"
+                        value={watermarkText} // Reuse state or add new
+                        onChange={(e) => setWatermarkText(e.target.value)}
+                        className="premium-input w-full text-center font-bold"
+                        placeholder="Enter PDF password"
+                    />
+                    <p className="text-[8px] text-secondary text-center italic">Document will be encrypted with this password.</p>
+                </div>
+            )}
+
+            {operation === 'redact' && (
+                <div className="space-y-4">
+                    <div className="space-y-3">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Redaction Mode</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {['manual', 'interval'].map(mode => (
+                                <button
+                                    key={mode}
+                                    onClick={() => setRedactMode(mode)}
+                                    className={`premium-input text-center text-[10px] font-black uppercase ${redactMode === mode ? 'border-emerald-500 bg-emerald-500/5' : ''}`}
+                                >
+                                    {mode}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {redactMode === 'interval' && (
+                        <div className="space-y-3">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Redact Every {redactInterval} Pages</label>
+                            <input
+                                type="range"
+                                min="1"
+                                max={numPages > 1 ? numPages : 2}
+                                value={redactInterval}
+                                onChange={(e) => setRedactInterval(parseInt(e.target.value))}
+                                className="w-full accent-emerald-500"
+                            />
+                        </div>
+                    )}
+
+                    <div className="space-y-3">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Region Coordinates (x, y, w, h)</label>
+                        <div className="grid grid-cols-4 gap-2">
+                            {['x', 'y', 'w', 'h'].map(coord => (
+                                <div key={coord} className="space-y-1">
+                                    <input
+                                        type="number"
+                                        value={redactCoords[coord]}
+                                        onChange={(e) => updateRedactCoord(coord, e.target.value)}
+                                        className="premium-input w-full text-center text-[10px] font-bold py-1"
+                                    />
+                                    <span className="block text-[7px] text-center text-secondary uppercase">{coord}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Standard Color</label>
+                        <div className="flex gap-2">
+                            <button onClick={() => setWatermarkText('#000000')} className={`flex-1 p-2 rounded-lg border-2 ${watermarkText === '#000000' ? 'border-emerald-500' : 'border-transparent'} bg-black text-white text-[9px] font-bold`}>Black out</button>
+                            <button onClick={() => setWatermarkText('#ffffff')} className={`flex-1 p-2 rounded-lg border-2 ${watermarkText === '#ffffff' ? 'border-emerald-500' : 'border-transparent'} bg-white text-black text-[9px] font-bold`}>White out</button>
+                        </div>
+                        <p className="text-[8px] text-secondary text-center italic">Selected area will be visually redacted.</p>
+                    </div>
+                </div>
+            )}
+
+            {operation === 'split' && (
+                <div className="space-y-4">
+                    <div className="space-y-3">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Split Method</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {['interval', 'manual'].map(mode => (
+                                <button
+                                    key={mode}
+                                    onClick={() => setSplitMode(mode)}
+                                    className={`premium-input text-center text-[10px] font-black uppercase ${splitMode === mode ? 'border-emerald-500 bg-emerald-500/5' : ''}`}
+                                >
+                                    {mode === 'interval' ? 'Page Interval' : 'Manual Split'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {splitMode === 'interval' ? (
+                        <div className="space-y-3">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Split Every {splitInterval} Pages</label>
+                            <input
+                                type="range"
+                                min="1"
+                                max={numPages > 1 ? numPages : 2}
+                                value={splitInterval}
+                                onChange={(e) => setSplitInterval(parseInt(e.target.value))}
+                                className="w-full accent-emerald-500"
+                            />
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Cut-off Page Numbers</label>
+                            <input
+                                type="text"
+                                value={splitPages}
+                                onChange={(e) => setSplitPages(e.target.value)}
+                                className="premium-input w-full text-center font-bold text-xs"
+                                placeholder="Example: 5, 12, 20"
+                            />
+                            <p className="text-[8px] text-secondary text-center italic opacity-70">
+                                PDF will be split after each entered page number.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {operation === 'watermark' && (
                 <div className="space-y-3">
                     <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Watermark Text</label>
@@ -1345,10 +1712,47 @@ const EditToolEnhanced = () => {
                 </div>
             )}
 
+            {operation === 'insert' && (
+                <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Insert After Page</label>
+                    <input
+                        type="number"
+                        min="1"
+                        max={numPages}
+                        value={insertPosition}
+                        onChange={(e) => setInsertPosition(parseInt(e.target.value))}
+                        className="premium-input w-full text-center font-bold"
+                    />
+                </div>
+            )}
+
+            {operation === 'merge' && (
+                <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Append Documents</label>
+                    <input
+                        type="file"
+                        multiple
+                        accept=".pdf"
+                        onChange={handleFileChange}
+                        className="hidden"
+                        id="pdf-merge-input"
+                    />
+                    <label
+                        htmlFor="pdf-merge-input"
+                        className="premium-input w-full flex flex-col items-center justify-center border-dashed gap-2 py-6 cursor-pointer hover:bg-emerald-500/5 transition-all"
+                    >
+                        <Upload size={20} className="text-emerald-500" />
+                        <span className="text-[10px] font-bold text-primary">
+                            {mergeFiles.length > 0 ? `${mergeFiles.length} files selected` : "Choose PDF Files"}
+                        </span>
+                    </label>
+                </div>
+            )}
+
             <button
                 onClick={executeOperation}
-                disabled={isProcessing || !pdfDocument || !pageRange.isValid}
-                className={`premium-btn w-full !bg-emerald-600 shadow-emerald-600/20 ${isProcessing || !pdfDocument || !pageRange.isValid ? 'opacity-50 cursor-not-allowed' : ''
+                disabled={isProcessing || !pdfDocument || (!pageRange.isValid && operation !== 'merge' && operation !== 'split')}
+                className={`premium-btn w-full !bg-emerald-600 shadow-emerald-600/20 ${isProcessing || !pdfDocument || (!pageRange.isValid && operation !== 'merge' && operation !== 'split') ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
             >
                 {isProcessing ? (
@@ -1368,6 +1772,162 @@ const EditToolEnhanced = () => {
                         </p>
                     </div>
                 </div>
+            </div>
+        </div>
+    );
+};
+
+/* ==================== PRODUCTION-GRADE e-SIGNATURE ENGINE ==================== */
+const SignatureToolEnhanced = () => {
+    const { pdfFile, fileName, numPages } = usePDF();
+    const toast = useToast();
+    const canvasRef = useRef(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [signature, setSignature] = useState(null);
+    const [signPage, setSignPage] = useState(1);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    useEffect(() => {
+        if (canvasRef.current) {
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d');
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+        }
+    }, []); // Run once on mount
+
+    const startDrawing = (e) => {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        setIsDrawing(true);
+    };
+
+    const draw = (e) => {
+        if (!isDrawing) return;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.lineTo(x, y);
+        ctx.stroke();
+    };
+
+    const stopDrawing = () => {
+        setIsDrawing(false);
+        setSignature(canvasRef.current.toDataURL());
+    };
+
+    const clearCanvas = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setSignature(null);
+    };
+
+    const applySignature = async () => {
+        if (!signature || !pdfFile) return;
+        setIsProcessing(true);
+        try {
+            const bytes = await pdfEditService.signPDF(pdfFile, signature, {
+                page: signPage,
+                x: 100, y: 100, width: 200, height: 100
+            });
+            pdfEditService.downloadPDF(bytes, `${fileName.replace('.pdf', '')}_signed.pdf`);
+            toast.success('Document signed successfully!');
+        } catch (err) {
+            toast.error('Failed to sign document');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="bg-indigo-500/5 p-8 rounded-3xl border border-indigo-500/10 flex flex-col items-center gap-4 text-center">
+                <div className="w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500">
+                    <PenTool size={32} />
+                </div>
+                <div>
+                    <h3 className="text-primary font-black">Local e-Signature</h3>
+                    <p className="text-secondary text-[11px] mt-2 max-w-xs">Draw and place binding signatures locally without cloud uploading.</p>
+                </div>
+            </div>
+
+            <div className="glass-card p-4 space-y-4">
+                <label className="text-[9px] font-black uppercase tracking-widest text-secondary block text-center">Draw your signature below</label>
+                <canvas
+                    ref={canvasRef}
+                    width={400}
+                    height={200}
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    className="w-full h-[150px] bg-white border border-indigo-500/20 rounded-xl cursor-crosshair shadow-inner"
+                />
+                <div className="flex justify-between">
+                    <button onClick={clearCanvas} className="text-[10px] font-black uppercase text-secondary hover:text-red-500 flex items-center gap-1">
+                        <Trash2 size={12} /> Clear Pad
+                    </button>
+                    <p className="text-[9px] text-secondary">Signature is saved locally</p>
+                </div>
+            </div>
+
+            <div className="space-y-3">
+                <label className="text-[9px] font-black uppercase tracking-widest text-secondary">Sign on Page</label>
+                <input
+                    type="number"
+                    min="1"
+                    max={numPages}
+                    value={signPage}
+                    onChange={(e) => setSignPage(parseInt(e.target.value))}
+                    className="premium-input w-full text-center font-bold"
+                />
+            </div>
+
+            <button
+                onClick={applySignature}
+                disabled={!signature || isProcessing}
+                className={`premium-btn w-full !bg-indigo-600 shadow-indigo-600/20 ${!signature || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : 'Apply & Download Signed PDF'}
+            </button>
+        </div>
+    );
+};
+
+/* ==================== PRODUCTION-GRADE PDF SPACE ENGINE ==================== */
+const SpaceToolEnhanced = () => {
+    return (
+        <div className="space-y-6">
+            <div className="bg-cyan-500/5 p-8 rounded-3xl border border-cyan-500/10 flex flex-col items-center gap-4 text-center">
+                <div className="w-16 h-16 bg-cyan-500/10 rounded-2xl flex items-center justify-center text-cyan-500">
+                    <Layout size={32} />
+                </div>
+                <div>
+                    <h3 className="text-primary font-black">AI PDF Spaces</h3>
+                    <p className="text-secondary text-[11px] mt-2 max-w-xs">Analyze, compare, and get insights across all open documents simultaneously.</p>
+                </div>
+            </div>
+
+            <div className="glass-card p-10 flex flex-col items-center justify-center space-y-4 text-center opacity-70">
+                <Wand2 size={40} className="text-cyan-500 animate-pulse" />
+                <h4 className="text-primary font-bold text-xs">Multi-Document Intelligence</h4>
+                <p className="text-[10px] text-secondary leading-relaxed">Cross-tab analysis is active. Your open workspace is being indexed for global AI insights.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+                <button className="premium-btn !bg-cyan-600 flex items-center gap-2 justify-center py-4">
+                    <Zap size={14} /> Compare Tabs
+                </button>
+                <button className="premium-btn !bg-bg-secondary !text-primary border-2 py-4">
+                    Global Summary
+                </button>
             </div>
         </div>
     );

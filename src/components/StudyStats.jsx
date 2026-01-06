@@ -186,8 +186,8 @@ const StudyStats = () => {
                 </div>
             )}
 
-            {/* Hidden function to add sessions - exposed for Pomodoro integration */}
-            <div style={{ display: 'none' }} data-add-session={addStudySession} />
+            {/* Exposed for Pomodoro integration */}
+            <div data-stats-ready="true" />
         </div>
     );
 };

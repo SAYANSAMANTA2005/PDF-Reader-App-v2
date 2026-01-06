@@ -10,6 +10,7 @@
     },
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
+        "@pdfsmaller/pdf-encrypt-lite": "^1.0.1",
         "clsx": "^2.1.1",
         "framer-motion": "^11.0.0",
         "idb": "^8.0.0",

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { usePDF } from '../context/PDFContext';
 import {
     Zap,
@@ -50,6 +50,11 @@ const ProStore = () => {
     const [selectedPlan, setSelectedPlan] = useState('yearly');
     const [isProcessing, setIsProcessing] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
+    const pricingRef = useRef(null);
+
+    const scrollToPricing = () => {
+        pricingRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
 
     const handlePurchase = () => {
         setIsProcessing(true);
@@ -73,7 +78,7 @@ const ProStore = () => {
     }
 
     return (
-        <div className="min-h-full bg-primary/20 p-2 md:p-10 relative overflow-hidden">
+        <div className="bg-primary/20 p-2 md:p-10 relative overflow-y-auto h-screen custom-scrollbar">
             {showSuccess && <SimpleConfetti />}
 
             {/* Background Decorations */}
@@ -96,7 +101,8 @@ const ProStore = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="text-4xl md:text-6xl font-black text-primary tracking-tight"
+                        className="text-4xl md:text-6xl font-black text-primary tracking-tight cursor-pointer"
+                        onClick={scrollToPricing}
                     >
                         Unlock Your <span className="gradient-text">Genius Mode</span>
                     </motion.h1>
@@ -111,12 +117,12 @@ const ProStore = () => {
                     </motion.p>
                 </div>
 
-                {/* Pricing Comparison */}
                 <motion.div
+                    ref={pricingRef}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
-                    className="mb-16"
+                    className="mb-16 scroll-mt-20"
                 >
                     <PricingComparison onSelectPlan={(plan) => {
                         setSelectedPlan(plan);

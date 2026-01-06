@@ -1,19 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePDF } from '../context/PDFContext';
-import { Search, X, ChevronUp, ChevronDown, Settings2, SlidersHorizontal } from 'lucide-react';
+import { Search, X, ChevronUp, ChevronDown, Settings2, SlidersHorizontal, Clock } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const SearchBar = () => {
     const {
         searchQuery, setSearchQuery,
         searchResults, setSearchResults,
         currentMatchIndex, setCurrentMatchIndex,
-        pdfDocument, setCurrentPage,
+        pdfDocument, setCurrentPage, numPages,
         searchOperators, toggleSearchOperator
     } = usePDF();
 
     const [isSearching, setIsSearching] = useState(false);
     const [showOptions, setShowOptions] = useState(false);
     const [searchProgress, setSearchProgress] = useState(0);
+    const [pageRange, setPageRange] = useState({ start: 1, end: numPages || 1, active: false });
+
+    // Sync pageRange end when numPages loaded
+    useEffect(() => {
+        if (numPages > 0) {
+            setPageRange(prev => ({ ...prev, end: numPages }));
+        }
+    }, [numPages]);
 
     const performAdvancedSearch = (text, query, ops) => {
         if (ops.useRegex) {
@@ -78,13 +87,24 @@ const SearchBar = () => {
         const allMatches = [];
 
         try {
-            const BATCH_SIZE = 20; // Smaller batch for coordinate calculation
+            const chunkSize = 20; // Smaller batch for coordinate calculation
             const totalPages = pdfDocument.numPages;
 
-            for (let i = 1; i <= totalPages; i += BATCH_SIZE) {
-                const chunkEnd = Math.min(i + BATCH_SIZE - 1, totalPages);
+            const chunks = [];
+            for (let i = 1; i <= totalPages; i += chunkSize) {
+                chunks.push(i);
+            }
 
-                for (let pageNum = i; pageNum <= chunkEnd; pageNum++) {
+            for (let i = 0; i < chunks.length; i++) {
+                const chunkStart = chunks[i];
+                const chunkEnd = Math.min(chunkStart + chunkSize - 1, totalPages);
+
+                for (let pageNum = chunkStart; pageNum <= chunkEnd; pageNum++) {
+                    // Respect Page Range if active
+                    if (pageRange.active && (pageNum < pageRange.start || pageNum > pageRange.end)) {
+                        continue;
+                    }
+
                     const page = await pdfDocument.getPage(pageNum);
                     const textContent = await page.getTextContent();
                     const viewport = page.getViewport({ scale: 1.0 });
@@ -96,36 +116,44 @@ const SearchBar = () => {
                     if (isMatch) {
                         const query = searchQuery.toLowerCase();
 
-                        // If it's a complex search (regex/boolean), we fall back to page-level result
-                        if (searchOperators.useRegex || searchOperators.useBoolean) {
+                        // If it's a complex Regex search, we fall back to page-level result
+                        // But for Boolean or Simple search, we want full highlighting
+                        if (searchOperators.useRegex) {
                             allMatches.push({
                                 pageNum,
                                 text: fullText.substring(0, 100) + '...',
                             });
                         } else {
-                            // Simple search: calculate coordinates (theirs)
+                            // Extract terms to highlight (supports boolean tokens)
+                            const queryTerms = searchQuery.toLowerCase()
+                                .split(/\s+/)
+                                .filter(t => !['AND', 'OR', 'NOT'].includes(t.toUpperCase()))
+                                .filter(t => t.length > 0);
+
                             textContent.items.forEach((item) => {
                                 if (!item.str) return;
                                 const itemText = item.str.toLowerCase();
 
-                                let startIndex = 0;
-                                while ((startIndex = itemText.indexOf(query, startIndex)) !== -1) {
-                                    const [tx_a, tx_b, tx_c, tx_d, tx_e, tx_f] = item.transform;
-                                    const totalWidth = item.width || 0;
-                                    const charWidth = item.str.length > 0 ? totalWidth / item.str.length : 0;
-                                    const matchXOffset = startIndex * charWidth;
-                                    const matchWidth = query.length * charWidth;
+                                queryTerms.forEach(term => {
+                                    let startIndex = 0;
+                                    while ((startIndex = itemText.indexOf(term, startIndex)) !== -1) {
+                                        const [tx_a, tx_b, tx_c, tx_d, tx_e, tx_f] = item.transform;
+                                        const totalWidth = item.width || 0;
+                                        const charWidth = item.str.length > 0 ? totalWidth / item.str.length : 0;
+                                        const matchXOffset = startIndex * charWidth;
+                                        const matchWidth = term.length * charWidth;
 
-                                    allMatches.push({
-                                        pageNum,
-                                        x: (tx_e + matchXOffset) / viewport.width,
-                                        y: (viewport.height - tx_f) / viewport.height,
-                                        width: matchWidth / viewport.width,
-                                        height: Math.abs(tx_d) / viewport.height,
-                                        text: query
-                                    });
-                                    startIndex += query.length;
-                                }
+                                        allMatches.push({
+                                            pageNum,
+                                            x: (tx_e + matchXOffset) / viewport.width,
+                                            y: (viewport.height - tx_f) / viewport.height,
+                                            width: matchWidth / viewport.width,
+                                            height: Math.abs(tx_d) / viewport.height,
+                                            text: term
+                                        });
+                                        startIndex += term.length;
+                                    }
+                                });
                             });
                         }
                     }
@@ -228,15 +256,54 @@ const SearchBar = () => {
                 </div>
             )}
 
+            {/* Range Filter - Visible when focused or has query */}
+            {(showOptions || searchQuery || isSearching) && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-2 mt-2 px-1"
+                >
+                    <button
+                        onClick={() => setPageRange(prev => ({ ...prev, active: !prev.active }))}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${pageRange.active ? 'bg-accent text-white' : 'bg-bg-secondary text-secondary'
+                            }`}
+                    >
+                        <Clock size={12} /> Range
+                    </button>
+
+                    {pageRange.active && (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                            <input
+                                type="number"
+                                min="1"
+                                max={pageRange.end}
+                                value={pageRange.start}
+                                onChange={(e) => setPageRange(prev => ({ ...prev, start: Math.max(1, parseInt(e.target.value)) }))}
+                                className="w-12 premium-input !py-1 !px-2 !text-[10px] text-center"
+                            />
+                            <span className="text-secondary text-[10px]">to</span>
+                            <input
+                                type="number"
+                                min={pageRange.start}
+                                max={numPages}
+                                value={pageRange.end}
+                                onChange={(e) => setPageRange(prev => ({ ...prev, end: Math.min(numPages, parseInt(e.target.value)) }))}
+                                className="w-12 premium-input !py-1 !px-2 !text-[10px] text-center"
+                            />
+                        </div>
+                    )}
+                </motion.div>
+            )}
+
             {searchResults.length > 0 && (
                 <div className="search-info" style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px', textAlign: 'right' }}>
                     {currentMatchIndex + 1} / {searchResults.length} {searchResults.length === 1 ? 'match' : 'matches'}
                 </div>
             )}
             {isSearching && (
-                <div className="search-status" style={{ fontSize: '0.7rem', color: 'var(--accent-color)', marginTop: '4px' }}>
+                <div className="flex items-center gap-2 mt-2" style={{ fontSize: '0.7rem', color: 'var(--accent-color)', marginTop: '4px' }}>
                     Scanning document: {searchProgress}%
-                    <div style={{ height: '2px', background: '#eee', marginTop: '2px', overflow: 'hidden' }}>
+                    <div style={{ height: '2px', background: '#eee', marginTop: '2px', overflow: 'hidden', flex: 1 }}>
                         <div style={{ height: '100%', width: `${searchProgress}%`, background: 'var(--accent-color)', transition: 'width 0.2s' }}></div>
                     </div>
                 </div>

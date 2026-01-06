@@ -4,6 +4,7 @@
  */
 
 import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib';
+import { encryptPDF as libraryEncrypt } from '@pdfsmaller/pdf-encrypt-lite';
 
 /**
  * Rotate pages in a PDF
@@ -216,6 +217,187 @@ export const insertBlankPages = async (pdfFile, positions, pageSize = { width: 6
  * @param {Uint8Array} pdfBytes - PDF data
  * @param {string} filename - Desired filename
  */
+/**
+ * Encrypt a PDF with a password
+ * @param {File|ArrayBuffer} pdfFile 
+ * @param {string} password 
+ * @returns {Promise<Uint8Array>}
+ */
+export const encryptPDF = async (pdfFile, password) => {
+    try {
+        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        // True encryption using industry-standard RC4/AES (via pdf-encrypt-lite)
+        // This modifies the PDF trailer and appends the encryption dictionary
+        const encryptedBytes = await libraryEncrypt(
+            new Uint8Array(pdfBytes),
+            password,
+            password, // Use same owner password for simplicity
+            {
+                printing: 'allow',
+                modifying: 'allow',
+                copying: 'allow',
+                annotating: 'allow'
+            }
+        );
+        return encryptedBytes;
+    } catch (error) {
+        console.error('Error encrypting PDF:', error);
+        throw new Error(`Failed to encrypt PDF: ${error.message}`);
+    }
+};
+
+/**
+ * Apply visual redaction to specific areas
+ * @param {File|ArrayBuffer} pdfFile 
+ * @param {Array<{page: number, x: number, y: number, width: number, height: number, color: {r,g,b}}>} areas 
+ * @returns {Promise<Uint8Array>}
+ */
+export const redactPDF = async (pdfFile, areas) => {
+    try {
+        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfDoc = await PDFDocument.load(pdfBytes);
+        const pages = pdfDoc.getPages();
+
+        for (const area of areas) {
+            const page = pages[area.page - 1];
+            if (!page) continue;
+
+            const { r, g, b } = area.color || { r: 0, g: 0, b: 0 };
+            page.drawRectangle({
+                x: area.x,
+                y: area.y,
+                width: area.width,
+                height: area.height,
+                color: rgb(r, g, b),
+                opacity: 1
+            });
+        }
+
+        const modifiedBytes = await pdfDoc.save();
+        return modifiedBytes;
+    } catch (error) {
+        console.error('Error redacting PDF:', error);
+        throw error;
+    }
+};
+
+/**
+ * Embed a signature image into a PDF
+ * @param {File|ArrayBuffer} pdfFile 
+ * @param {string} signatureDataUrl - Data URL of the signature image (PNG)
+ * @param {Object} position - { page, x, y, width, height }
+ * @returns {Promise<Uint8Array>}
+ */
+export const signPDF = async (pdfFile, signatureDataUrl, position) => {
+    try {
+        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfDoc = await PDFDocument.load(pdfBytes);
+
+        // Embed the signature image
+        const signatureImageBytes = await fetch(signatureDataUrl).then((res) => res.arrayBuffer());
+        const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
+
+        const pages = pdfDoc.getPages();
+        const page = pages[position.page - 1];
+        if (page) {
+            page.drawImage(signatureImage, {
+                x: position.x,
+                y: position.y,
+                width: position.width,
+                height: position.height,
+            });
+        }
+
+        const modifiedBytes = await pdfDoc.save();
+        return modifiedBytes;
+    } catch (error) {
+        console.error('Error signing PDF:', error);
+        throw error;
+    }
+};
+
+/**
+ * Split PDF into multiple chunks of N pages each
+ * @param {File|ArrayBuffer} pdfFile 
+ * @param {number} interval 
+ * @returns {Promise<Array<{bytes: Uint8Array, name: string}>>}
+ */
+export const splitPDFByInterval = async (pdfFile, interval) => {
+    try {
+        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const sourcePdf = await PDFDocument.load(pdfBytes);
+        const pageCount = sourcePdf.getPageCount();
+        const results = [];
+
+        for (let i = 0; i < pageCount; i += interval) {
+            const newPdf = await PDFDocument.create();
+            const end = Math.min(i + interval, pageCount);
+            const pageIndices = Array.from({ length: end - i }, (_, k) => i + k);
+
+            const copiedPages = await newPdf.copyPages(sourcePdf, pageIndices);
+            copiedPages.forEach(page => newPdf.addPage(page));
+
+            const bytes = await newPdf.save();
+            results.push({
+                bytes,
+                name: `part_${Math.floor(i / interval) + 1}_pages_${i + 1}-${end}.pdf`
+            });
+        }
+        return results;
+    } catch (error) {
+        console.error('Error splitting PDF by interval:', error);
+        throw error;
+    }
+};
+
+/**
+ * Split PDF at specific page numbers
+ * @param {File|ArrayBuffer} pdfFile 
+ * @param {number[]} splitPoints - 1-indexed page numbers where split occurs (points are the LAST page of a chunk)
+ * @returns {Promise<Array<{bytes: Uint8Array, name: string}>>}
+ */
+export const splitPDFByRanges = async (pdfFile, splitPoints) => {
+    try {
+        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const sourcePdf = await PDFDocument.load(pdfBytes);
+        const totalPages = sourcePdf.getPageCount();
+
+        // Sort and filter points
+        const points = [...new Set(splitPoints)]
+            .sort((a, b) => a - b)
+            .filter(p => p > 0 && p < totalPages);
+
+        // Create ranges: 1 to point1, point1+1 to point2, ..., lastPoint+1 to total
+        const ranges = [];
+        let lastPoint = 0;
+        for (const p of points) {
+            ranges.push({ start: lastPoint + 1, end: p });
+            lastPoint = p;
+        }
+        ranges.push({ start: lastPoint + 1, end: totalPages });
+
+        const results = [];
+        for (let i = 0; i < ranges.length; i++) {
+            const { start, end } = ranges[i];
+            const newPdf = await PDFDocument.create();
+            const pageIndices = Array.from({ length: end - start + 1 }, (_, k) => start + k - 1);
+
+            const copiedPages = await newPdf.copyPages(sourcePdf, pageIndices);
+            copiedPages.forEach(page => newPdf.addPage(page));
+
+            const bytes = await newPdf.save();
+            results.push({
+                bytes,
+                name: `part_${i + 1}_pages_${start}-${end}.pdf`
+            });
+        }
+        return results;
+    } catch (error) {
+        console.error('Error splitting PDF by ranges:', error);
+        throw error;
+    }
+};
+
 export const downloadPDF = (pdfBytes, filename) => {
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
@@ -265,6 +447,11 @@ export default {
     mergePDFs,
     addWatermark,
     insertBlankPages,
+    splitPDFByInterval,
+    splitPDFByRanges,
+    encryptPDF,
+    redactPDF,
+    signPDF,
     downloadPDF,
     getPDFMetadata
 };

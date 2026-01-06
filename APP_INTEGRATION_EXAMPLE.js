@@ -1,27 +1,6 @@
 // src/App.jsx - WITH PDF SAFETY GUARD INTEGRATION
 // Example of how to integrate the PDF Safety Guard
 
-/*
-
-INTEGRATION STEPS:
-
-1. Add imports at the top:
-   import { usePDFSafetyGuard } from './hooks/usePDFSafetyGuard';
-   import PDFWarningModal from './components/PDFWarningModal';
-   import './styles/pdfWarningModal.css';
-
-2. Add the safety guard hook in your component:
-   const safetyGuard = usePDFSafetyGuard();
-
-3. Before loading PDF, run the preflight check:
-   const result = await safetyGuard.check(file);
-
-4. Render the warning modal:
-   <PDFWarningModal ... />
-
-EXAMPLE CODE:
-*/
-
 import React, { useState } from 'react';
 import { usePDF } from './context/PDFContext';
 import { usePDFSafetyGuard } from './hooks/usePDFSafetyGuard';
@@ -29,15 +8,192 @@ import PDFWarningModal from './components/PDFWarningModal';
 import Toolbar from './components/Toolbar';
 import Sidebar from './components/Sidebar';
 import PDFViewer from './components/PDFViewer';
+import { Upload, FileText } from 'lucide-react';
 import './styles/pdfWarningModal.css';
 import './styles/main.css';
 
 const App = () => {
-    const { loadPDF, error, isLoading } = usePDF();
-    const safetyGuard = usePDFSafetyGuard();
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [isSafeMode, setIsSafeMode] = useState(false);
-    
-    /**
-     * Handle file selection from input or drag-drop
-     */\n    const handlePDFSelected = async (file) => {\n        setSelectedFile(file);\n        \n        // Run preflight check (non-blocking)\n        const result = await safetyGuard.check(file);\n        \n        switch (result.status) {\n            case 'ALLOWED':\n                // Safe to load normally\n                await loadPDF(file);\n                safetyGuard.reset();\n                break;\n                \n            case 'BLOCKED':\n                // Show warning modal with options\n                // Modal is shown automatically by safetyGuard.showWarning\n                break;\n                \n            case 'ERROR':\n                // Show error\n                alert(`Error checking PDF: ${result.error}`);\n                safetyGuard.reset();\n                break;\n                \n            case 'CANCELLED':\n                // User cancelled\n                safetyGuard.reset();\n                break;\n        }\n    };\n    \n    /**\n     * Handle user choosing to load in Safe Mode\n     */\n    const handleLoadInSafeMode = async () => {\n        try {\n            setIsSafeMode(true);\n            // Load with safe mode enabled\n            // Pass flag to PDF loader to limit pages, reduce quality, etc.\n            await loadPDF(selectedFile, { safeMode: true });\n            safetyGuard.setShowWarning(false);\n        } catch (err) {\n            alert(`Failed to load in Safe Mode: ${err.message}`);\n        }\n    };\n    \n    /**\n     * Handle user choosing download only\n     */\n    const handleDownloadOnly = () => {\n        if (selectedFile instanceof File) {\n            // Trigger browser download\n            const url = URL.createObjectURL(selectedFile);\n            const a = document.createElement('a');\n            a.href = url;\n            a.download = selectedFile.name;\n            document.body.appendChild(a);\n            a.click();\n            document.body.removeChild(a);\n            URL.revokeObjectURL(url);\n        }\n        safetyGuard.reset();\n    };\n    \n    /**\n     * Handle user cancelling\n     */\n    const handleCancel = () => {\n        safetyGuard.reset();\n        setSelectedFile(null);\n    };\n    \n    /**\n     * Handle drag and drop\n     */\n    const handleDragOver = (e) => {\n        e.preventDefault();\n        e.stopPropagation();\n    };\n    \n    const handleDrop = (e) => {\n        e.preventDefault();\n        e.stopPropagation();\n        \n        const files = e.dataTransfer.files;\n        if (files.length > 0) {\n            const file = files[0];\n            if (file.type === 'application/pdf') {\n                handlePDFSelected(file);\n            } else {\n                alert('Please drop a PDF file');\n            }\n        }\n    };\n    \n    /**\n     * Handle file input\n     */\n    const handleFileInput = (e) => {\n        if (e.target.files?.length > 0) {\n            handlePDFSelected(e.target.files[0]);\n        }\n    };\n    \n    return (\n        <div className=\"app-container\">\n            {/* Toolbar */}\n            <Toolbar />\n            \n            <div className=\"app-main\">\n                {/* Sidebar */}\n                <Sidebar />\n                \n                {/* Main Content */}\n                <div className=\"app-content\">\n                    {/* Check if PDF is loaded */}\n                    {!loadedPDF ? (\n                        // Upload area\n                        <div\n                            className=\"pdf-upload-area\"\n                            onDragOver={handleDragOver}\n                            onDrop={handleDrop}\n                        >\n                            <div className=\"upload-content\">\n                                <h2>📄 Open a PDF to start reading</h2>\n                                <p>\n                                    Drag and drop your PDF here, or click to select a file.\n                                </p>\n                                \n                                {safetyGuard.isChecking && (\n                                    <div className=\"checking-status\">\n                                        <p>⏳ Checking PDF: {safetyGuard.checkProgress}</p>\n                                        <progress />\n                                    </div>\n                                )}\n                                \n                                <input\n                                    type=\"file\"\n                                    accept=\".pdf\"\n                                    onChange={handleFileInput}\n                                    disabled={safetyGuard.isChecking}\n                                    id=\"pdf-input\"\n                                    style={{ display: 'none' }}\n                                />\n                                \n                                <button\n                                    onClick={() => document.getElementById('pdf-input').click()}\n                                    disabled={safetyGuard.isChecking}\n                                    className=\"btn-select-pdf\"\n                                >\n                                    {safetyGuard.isChecking ? '🔍 Analyzing...' : '📁 Select PDF'}\n                                </button>\n                            </div>\n                        </div>\n                    ) : (\n                        // PDF Viewer\n                        <PDFViewer />\n                    )}\n                </div>\n            </div>\n            \n            {/* PDF Warning Modal */}\n            <PDFWarningModal\n                isOpen={safetyGuard.showWarning}\n                analysis={safetyGuard.preflightResult?.analysis}\n                riskAssessment={safetyGuard.preflightResult?.riskAssessment}\n                isLoading={safetyGuard.isChecking}\n                onAllow={async () => {\n                    // User chose to load anyway\n                    await loadPDF(selectedFile);\n                    safetyGuard.setShowWarning(false);\n                }}\n                onLoadSafeMode={handleLoadInSafeMode}\n                onDownloadOnly={handleDownloadOnly}\n                onCancel={handleCancel}\n            />\n        </div>\n    );\n};\n\nexport default App;\n\n/*\n\n=== WHAT THIS DOES ===\n\n1. User selects PDF (file input or drag-drop)\n   ↓\n2. handlePDFSelected() called\n   ↓\n3. Safety Guard runs preflight check (non-blocking)\n   - Checks file size\n   - Analyzes PDF structure\n   - Assesses risk\n   ↓\n4. Results handled:\n   - ALLOWED: Load normally\n   - BLOCKED: Show warning modal\n   - ERROR: Show error alert\n   - CANCELLED: Reset state\n   ↓\n5. If warning modal shown:\n   - User sees file details\n   - User sees risks/warnings\n   - User chooses action:\n     * Load (if safe)\n     * Load in Safe Mode\n     * Download only\n     * Cancel\n   ↓\n6. Action executed, modal closed\n   ↓\n7. PDF loaded (or not) based on user choice\n\n=== KEY FEATURES ===\n\n✅ App NEVER freezes during check\n✅ User gets clear feedback\n✅ Safe defaults (blocks 50MB+ PDFs)\n✅ Configurable limits\n✅ Safe Mode option for large PDFs\n✅ Download without rendering option\n✅ Beautiful modal UI\n✅ Mobile responsive\n✅ Accessibility compliant\n\n=== CUSTOMIZATION ===\n\nChange default limits:\n    const safetyGuard = usePDFSafetyGuard({\n        MAX_FILE_SIZE_MB: 100,\n        MAX_PAGE_COUNT: 500,\n    });\n\nCustom error handling:\n    const handlePDFSelected = async (file) => {\n        const result = await safetyGuard.check(file);\n        // Add custom logic here\n    };\n\nDisable safety guard (not recommended):\n    // Just call loadPDF() directly without check\n    await loadPDF(file);\n\n*/\n
+   const {
+      pdfDocument,
+      loadPDF,
+      isSidebarOpen,
+      isLoading: isContextLoading,
+      error
+   } = usePDF();
+
+   const safetyGuard = usePDFSafetyGuard();
+   const [selectedFile, setSelectedFile] = useState(null);
+   const [isSafeMode, setIsSafeMode] = useState(false);
+
+   /**
+    * Handle file selection from input or drag-drop
+    */
+   const handlePDFSelected = async (file) => {
+      setSelectedFile(file);
+
+      // Run preflight check (non-blocking)
+      const result = await safetyGuard.check(file);
+
+      if (!result) return;
+
+      switch (result.status) {
+         case 'ALLOWED':
+            // Safe to load normally
+            await loadPDF(file);
+            safetyGuard.reset();
+            break;
+
+         case 'BLOCKED':
+            // Show warning modal with options (handled via showWarning state)
+            break;
+
+         case 'ERROR':
+            alert(`Error checking PDF: ${result.error}`);
+            safetyGuard.reset();
+            break;
+
+         case 'CANCELLED':
+            safetyGuard.reset();
+            break;
+
+         default:
+            break;
+      }
+   };
+
+   /**
+    * Handle user choosing to load in Safe Mode
+    */
+   const handleLoadInSafeMode = async () => {
+      try {
+         setIsSafeMode(true);
+         await loadPDF(selectedFile, { safeMode: true });
+         safetyGuard.setShowWarning(false);
+      } catch (err) {
+         alert(`Failed to load in Safe Mode: ${err.message}`);
+      }
+   };
+
+   /**
+    * Handle user choosing download only
+    */
+   const handleDownloadOnly = () => {
+      if (selectedFile instanceof File) {
+         const url = URL.createObjectURL(selectedFile);
+         const a = document.createElement('a');
+         a.href = url;
+         a.download = selectedFile.name;
+         document.body.appendChild(a);
+         a.click();
+         document.body.removeChild(a);
+         URL.revokeObjectURL(url);
+      }
+      safetyGuard.reset();
+   };
+
+   /**
+    * Handle user cancelling
+    */
+   const handleCancel = () => {
+      safetyGuard.reset();
+      setSelectedFile(null);
+   };
+
+   /**
+    * Handle file input
+    */
+   const handleFileChange = (e) => {
+      const file = e.target.files[0];
+      if (file && file.type === 'application/pdf') {
+         handlePDFSelected(file);
+      }
+   };
+
+   return (
+      <div className="app-container">
+         <div className="main-layout">
+            <header className="header">
+               <div className="logo-area">
+                  <FileText className="logo-icon" />
+                  <span className="logo-text">Elite PDF Reader</span>
+               </div>
+               <Toolbar />
+            </header>
+
+            <div className="content-area">
+               {pdfDocument && isSidebarOpen && <Sidebar />}
+
+               <main className="viewer-area">
+                  {!pdfDocument && (
+                     <div className="upload-container">
+                        <div className="upload-box">
+                           <Upload size={48} className="upload-icon" />
+                           <h2>Open a PDF to start reading</h2>
+                           <p>Drag and drop a file here, or click to select</p>
+
+                           {safetyGuard.isChecking && (
+                              <div className="checking-status" style={{ marginTop: '1rem', textAlign: 'center' }}>
+                                 <p>⏳ Analyzing PDF: {safetyGuard.checkProgress}</p>
+                                 <div style={{
+                                    width: '100%',
+                                    height: '4px',
+                                    background: 'rgba(255,255,255,0.1)',
+                                    borderRadius: '2px',
+                                    marginTop: '10px',
+                                    overflow: 'hidden'
+                                 }}>
+                                    <div style={{
+                                       width: '50%',
+                                       height: '100%',
+                                       background: 'var(--accent-color)',
+                                       animation: 'pulse 1.5s infinite ease-in-out'
+                                    }}></div>
+                                 </div>
+                              </div>
+                           )}
+
+                           <label className="upload-btn" style={{
+                              marginTop: '1.5rem',
+                              cursor: safetyGuard.isChecking ? 'not-allowed' : 'pointer',
+                              opacity: safetyGuard.isChecking ? 0.6 : 1
+                           }}>
+                              {safetyGuard.isChecking ? 'Checking...' : 'Select PDF'}
+                              <input
+                                 type="file"
+                                 accept="application/pdf"
+                                 onChange={handleFileChange}
+                                 hidden
+                                 disabled={safetyGuard.isChecking}
+                              />
+                           </label>
+                        </div>
+                        {isContextLoading && <p className="loading-text">Loading into viewer...</p>}
+                        {error && <p className="error-text">{error}</p>}
+                     </div>
+                  )}
+
+                  {pdfDocument && <PDFViewer />}
+               </main>
+            </div>
+         </div>
+
+         {/* Safety Guard Warning Modal */}
+         <PDFWarningModal
+            isOpen={safetyGuard.showWarning}
+            analysis={safetyGuard.preflightResult?.analysis}
+            riskAssessment={safetyGuard.preflightResult?.riskAssessment}
+            isLoading={safetyGuard.isChecking}
+            onAllow={async () => {
+               await loadPDF(selectedFile);
+               safetyGuard.setShowWarning(false);
+            }}
+            onLoadSafeMode={handleLoadInSafeMode}
+            onDownloadOnly={handleDownloadOnly}
+            onCancel={handleCancel}
+            memoryStatus={safetyGuard.memoryStatus}
+         />
+      </div>
+   );
+};
+
+export default App;

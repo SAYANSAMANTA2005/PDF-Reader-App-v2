@@ -13,53 +13,52 @@ export class PDFVirtualizer {
             bufferPages: options.bufferPages || 2, // Pages to render above/below viewport
             containerHeight: options.containerHeight || 800, // Viewport height
         };
-        
+
         this.scrollY = 0;
         this.containerHeight = this.options.containerHeight;
         this.visiblePages = [];
     }
-    
+
     /**
-     * Calculate which pages are visible
-     * Returns array of page numbers [start, end]
+     * Calculate which pages (or row indices) are visible
+     * Returns array of indices [start, end]
      */
-    getVisiblePages(scrollY, containerHeight) {
+    getVisiblePages(scrollY, containerHeight, isTwoPageMode = false) {
         this.scrollY = scrollY;
         this.containerHeight = containerHeight;
-        
-        // Current visible page range
-        const startPage = Math.max(
+
+        // Current visible page (or row) range
+        const startIdx = Math.max(
             0,
             Math.floor(scrollY / this.options.pageHeight) - this.options.bufferPages
         );
-        
-        const endPage = Math.min(
-            9999, // Max pages (will be constrained by actual page count)
+
+        const endIdx = Math.max(startIdx,
             Math.ceil((scrollY + containerHeight) / this.options.pageHeight) + this.options.bufferPages
         );
-        
+
         this.visiblePages = Array.from(
-            { length: endPage - startPage + 1 },
-            (_, i) => startPage + i
+            { length: endIdx - startIdx + 1 },
+            (_, i) => startIdx + i
         );
-        
+
         return this.visiblePages;
     }
-    
+
     /**
-     * Check if page should be rendered
+     * Check if index should be rendered
      */
-    shouldRenderPage(pageNumber) {
-        return this.visiblePages.includes(pageNumber);
+    shouldRenderIndex(index) {
+        return this.visiblePages.includes(index);
     }
-    
+
     /**
      * Get Y position of page
      */
     getPagePosition(pageNumber) {
         return pageNumber * this.options.pageHeight;
     }
-    
+
     /**
      * Get page number from Y position
      */
@@ -77,7 +76,7 @@ export class LRUPageCache {
         this.cache = new Map(); // page -> { data, timestamp }
         this.accessOrder = []; // Track access order for LRU
     }
-    
+
     /**
      * Get page from cache
      */
@@ -85,16 +84,16 @@ export class LRUPageCache {
         if (!this.cache.has(pageNumber)) {
             return null;
         }
-        
+
         // Move to end (most recently used)
         this.accessOrder = this.accessOrder.filter(p => p !== pageNumber);
         this.accessOrder.push(pageNumber);
-        
+
         const entry = this.cache.get(pageNumber);
         entry.timestamp = Date.now();
         return entry.data;
     }
-    
+
     /**
      * Set page in cache
      */
@@ -103,21 +102,21 @@ export class LRUPageCache {
         if (this.cache.has(pageNumber)) {
             this.accessOrder = this.accessOrder.filter(p => p !== pageNumber);
         }
-        
+
         // Add new entry
         this.cache.set(pageNumber, {
             data,
             timestamp: Date.now(),
         });
         this.accessOrder.push(pageNumber);
-        
+
         // Evict oldest if over capacity
         while (this.cache.size > this.maxSize) {
             const oldest = this.accessOrder.shift();
             this.cache.delete(oldest);
         }
     }
-    
+
     /**
      * Clear cache
      */
@@ -125,7 +124,7 @@ export class LRUPageCache {
         this.cache.clear();
         this.accessOrder = [];
     }
-    
+
     /**
      * Get cache statistics
      */
@@ -147,33 +146,33 @@ export class ViewportManager {
         this.scrollY = 0;
         this.containerHeight = containerElement?.clientHeight || 800;
         this.totalHeight = 0;
-        
+
         this.options = {
-            onScroll: options.onScroll || (() => {}),
+            onScroll: options.onScroll || (() => { }),
             debounceMs: options.debounceMs || 100,
         };
-        
+
         this.scrollTimeout = null;
         this.isScrolling = false;
-        
+
         this.setupListeners();
     }
-    
+
     /**
      * Setup scroll listener with debounce
      */
     setupListeners() {
         if (!this.container) return;
-        
+
         this.container.addEventListener('scroll', (e) => {
             this.scrollY = e.target.scrollTop;
             this.isScrolling = true;
-            
+
             // Clear existing timeout
             if (this.scrollTimeout) {
                 clearTimeout(this.scrollTimeout);
             }
-            
+
             // Debounce scroll callback
             this.scrollTimeout = setTimeout(() => {
                 this.isScrolling = false;
@@ -184,7 +183,7 @@ export class ViewportManager {
                     isScrolling: false,
                 });
             }, this.options.debounceMs);
-            
+
             // Immediate notification with isScrolling flag
             this.options.onScroll({
                 scrollY: this.scrollY,
@@ -194,21 +193,21 @@ export class ViewportManager {
             });
         });
     }
-    
+
     /**
      * Update container height
      */
     updateContainerHeight(height) {
         this.containerHeight = height;
     }
-    
+
     /**
      * Update total content height
      */
     updateTotalHeight(height) {
         this.totalHeight = height;
     }
-    
+
     /**
      * Get current scroll progress (0-100%)
      */
@@ -216,7 +215,7 @@ export class ViewportManager {
         if (this.totalHeight === 0) return 0;
         return Math.min(100, (this.scrollY / (this.totalHeight - this.containerHeight)) * 100);
     }
-    
+
     /**
      * Scroll to page
      */
@@ -224,7 +223,7 @@ export class ViewportManager {
         if (!this.container) return;
         this.container.scrollTop = pageNumber * pageHeight;
     }
-    
+
     /**
      * Get viewport bounds
      */
@@ -235,7 +234,7 @@ export class ViewportManager {
             height: this.containerHeight,
         };
     }
-    
+
     /**
      * Cleanup
      */
@@ -257,23 +256,23 @@ export class AdaptiveQualityRenderer {
             lowQualityDPI: options.lowQualityDPI || 1, // 1x zoom
             refinementDelayMs: options.refinementDelayMs || 500,
         };
-        
+
         this.currentDPI = this.options.highQualityDPI;
         this.isScrolling = false;
         this.refinementTimeout = null;
     }
-    
+
     /**
      * Update quality based on scroll state
      */
     updateQuality(isScrolling) {
         this.isScrolling = isScrolling;
-        
+
         // Clear existing refinement timeout
         if (this.refinementTimeout) {
             clearTimeout(this.refinementTimeout);
         }
-        
+
         if (isScrolling) {
             // Reduce quality while scrolling
             this.currentDPI = this.options.lowQualityDPI;
@@ -284,21 +283,21 @@ export class AdaptiveQualityRenderer {
             }, this.options.refinementDelayMs);
         }
     }
-    
+
     /**
      * Get current DPI
      */
     getDPI() {
         return this.currentDPI;
     }
-    
+
     /**
      * Get scale factor
      */
     getScale() {
         return this.currentDPI / this.options.highQualityDPI;
     }
-    
+
     /**
      * Cleanup
      */
@@ -321,7 +320,7 @@ export class PageRenderOptions {
         this.renderTextLayer = options.renderTextLayer !== false;
         this.renderAnnotations = options.renderAnnotations !== false;
     }
-    
+
     /**
      * Reduce quality
      */
@@ -333,7 +332,7 @@ export class PageRenderOptions {
             renderTextLayer: false,
         });
     }
-    
+
     /**
      * High quality
      */
@@ -345,7 +344,7 @@ export class PageRenderOptions {
             renderTextLayer: true,
         });
     }
-    
+
     /**
      * Get as object
      */
@@ -373,7 +372,7 @@ export class PerformanceMonitor {
         };
         this.maxMetrics = 50;
     }
-    
+
     /**
      * Record render time
      */
@@ -383,7 +382,7 @@ export class PerformanceMonitor {
             this.metrics.renderTime.shift();
         }
     }
-    
+
     /**
      * Record memory usage
      */
@@ -396,7 +395,7 @@ export class PerformanceMonitor {
             }
         }
     }
-    
+
     /**
      * Get average render time
      */
@@ -405,7 +404,7 @@ export class PerformanceMonitor {
         const sum = this.metrics.renderTime.reduce((a, b) => a + b, 0);
         return Math.round(sum / this.metrics.renderTime.length);
     }
-    
+
     /**
      * Get average memory usage
      */
@@ -414,7 +413,7 @@ export class PerformanceMonitor {
         const sum = this.metrics.memoryUsage.reduce((a, b) => a + b, 0);
         return (sum / this.metrics.memoryUsage.length).toFixed(2);
     }
-    
+
     /**
      * Get statistics
      */
@@ -425,7 +424,7 @@ export class PerformanceMonitor {
             totalRenders: this.metrics.renderTime.length,
         };
     }
-    
+
     /**
      * Reset metrics
      */

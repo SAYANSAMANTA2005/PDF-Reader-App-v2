@@ -31,6 +31,8 @@ export const autoPlanStudy = (examDate, topics, userPace = 'balanced') => {
     const startDate = new Date();
     const daysUntilExam = Math.ceil((new Date(examDate) - startDate) / (1000 * 60 * 60 * 24));
 
+    if (!topics) return [];
+
     topics.forEach((topic, index) => {
         // Initial Study
         sessions.push({
