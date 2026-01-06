@@ -21,7 +21,8 @@ import {
     BookOpen,
     MessageSquare,
     Sigma,
-    Brain
+    Brain,
+    Sparkles
 } from 'lucide-react';
 import DrawingPanel from './DrawingPanel';
 import EquationInsightPanel from './EquationInsightPanel';
@@ -42,26 +43,47 @@ const Toolbar = () => {
         brushThickness, handleDownload,
         isMathMode, setIsMathMode,
         activeEquation, setActiveEquation,
-        isActiveRecallMode, setIsActiveRecallMode
+        isActiveRecallMode, setIsActiveRecallMode,
+        setActiveSidebarTab, isPremium
     } = usePDF();
 
     const [isDrawingPanelOpen, setIsDrawingPanelOpen] = useState(false);
     const [isTextToSpeechOpen, setIsTextToSpeechOpen] = useState(false);
     const [isPDFChatOpen, setIsPDFChatOpen] = useState(false);
+    const [pageInputValue, setPageInputValue] = useState('');
 
-    // Removed local isReading state and handleZoomIn duplicate
+    // Sync page input with current page
+    React.useEffect(() => {
+        setPageInputValue(currentPage.toString());
+    }, [currentPage]);
 
     const handleZoomIn = () => setScale(prev => Math.min(prev + 0.1, 3.0));
     const handleZoomOut = () => setScale(prev => Math.max(prev - 0.1, 0.5));
-    const handleRotate = () => setRotation(prev => (prev + 90) % 360);
+    const handleRotate = () => {
+        setRotation(prev => (prev + 90) % 360);
+    };
     const handlePrevPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
     const handleNextPage = () => setCurrentPage(prev => Math.min(prev + 1, numPages));
 
-    // Page Input Handler
-    const handlePageInput = (e) => {
-        const val = parseInt(e.target.value);
+    // Page Input Handlers
+    const handlePageInputChange = (e) => {
+        setPageInputValue(e.target.value);
+    };
+
+    const handlePageInputCommit = () => {
+        const val = parseInt(pageInputValue);
         if (!isNaN(val) && val >= 1 && val <= numPages) {
             setCurrentPage(val);
+        } else {
+            // Reset to current page if invalid
+            setPageInputValue(currentPage.toString());
+        }
+    };
+
+    const handlePageInputKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            handlePageInputCommit();
+            e.target.blur();
         }
     };
 
@@ -93,8 +115,10 @@ const Toolbar = () => {
                     <span className="page-info">
                         <input
                             type="number"
-                            value={currentPage}
-                            onChange={handlePageInput}
+                            value={pageInputValue}
+                            onChange={handlePageInputChange}
+                            onBlur={handlePageInputCommit}
+                            onKeyDown={handlePageInputKeyDown}
                             min={1}
                             max={numPages}
                             disabled={!pdfDocument}
@@ -225,6 +249,15 @@ const Toolbar = () => {
                     disabled={!pdfDocument}
                 >
                     <Brain size={20} />
+                </button>
+                <div className="divider"></div>
+                <button
+                    onClick={() => setActiveSidebarTab('store')}
+                    className={`tool-btn ${isPremium ? 'text-yellow-500' : 'text-accent animate-pulse'}`}
+                    title={isPremium ? "Elite Member" : "Get Pro Version"}
+                >
+                    <Sparkles size={20} />
+                    {!isPremium && <span className="text-[10px] font-black uppercase ml-1">Pro</span>}
                 </button>
             </div>
 

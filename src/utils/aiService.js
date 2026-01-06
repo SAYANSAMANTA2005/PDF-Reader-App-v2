@@ -406,3 +406,177 @@ export const extractCitations = async (text) => {
         return [];
     }
 };
+/**
+ * Generate a premium interactive quiz
+ */
+export const generatePremiumQuiz = async (text) => {
+    const prompt = `Based on the following content, generate 5 high-quality multiple choice questions for a pro-level exam.
+    Return ONLY a JSON array of objects with this structure:
+    [
+      {
+        "question": "The question text",
+        "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+        "answerIndex": 0,
+        "explanation": "Why this is correct"
+      }
+    ]
+    Ensure the questions test deep understanding.`;
+
+    const response = await callAIFunc(prompt, text.substring(0, 40000));
+    try {
+        const jsonMatch = response.match(/\[[\s\S]*\]/);
+        return JSON.parse(jsonMatch ? jsonMatch[0] : response);
+    } catch (e) {
+        console.error("Failed to parse quiz JSON", e);
+        return [];
+    }
+};
+
+/**
+ * Generate advanced quiz with difficulty and question type controls
+ * @param {string} text - Source text
+ * @param {string} difficulty - 'easy', 'medium', 'hard'
+ * @param {string} questionType - 'mcq', 'truefalse', 'shortanswer'
+ * @param {number} count - Number of questions
+ */
+export const generateAdvancedQuiz = async (text, difficulty = 'medium', questionType = 'mcq', count = 5) => {
+    let difficultyInstructions = '';
+
+    if (difficulty === 'easy') {
+        difficultyInstructions = 'Focus on basic recall and simple concepts. Make questions straightforward with clear answers.';
+    } else if (difficulty === 'medium') {
+        difficultyInstructions = 'Focus on application and understanding. Questions should require connecting multiple concepts.';
+    } else if (difficulty === 'hard') {
+        difficultyInstructions = 'Focus on analysis, synthesis, and critical thinking. Questions should be challenging and require deep understanding.';
+    }
+
+    let typeInstructions = '';
+    let responseFormat = '';
+
+    if (questionType === 'mcq') {
+        typeInstructions = 'Create multiple choice questions with 4 options each.';
+        responseFormat = `[
+  {
+    "question": "Question text",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "answerIndex": 0,
+    "explanation": "Detailed explanation of why this is correct",
+    "difficulty": "${difficulty}"
+  }
+]`;
+    } else if (questionType === 'truefalse') {
+        typeInstructions = 'Create true/false questions with explanations.';
+        responseFormat = `[
+  {
+    "question": "Statement to evaluate",
+    "answer": true,
+    "explanation": "Detailed explanation",
+    "difficulty": "${difficulty}"
+  }
+]`;
+    } else if (questionType === 'shortanswer') {
+        typeInstructions = 'Create short answer questions requiring 1-3 sentence responses.';
+        responseFormat = `[
+  {
+    "question": "Question text",
+    "sampleAnswer": "Model answer",
+    "keyPoints": ["Key point 1", "Key point 2"],
+    "difficulty": "${difficulty}"
+  }
+]`;
+    }
+
+    const prompt = `You are an expert educator creating ${difficulty} difficulty ${questionType} questions.
+
+${difficultyInstructions}
+${typeInstructions}
+
+Generate ${count} questions based on this content.
+
+Return ONLY a JSON array in this exact format:
+${responseFormat}
+
+Make questions relevant, clear, and properly formatted.`;
+
+    const response = await callAIFunc(prompt, text.substring(0, 50000));
+    try {
+        const jsonMatch = response.match(/\[[\s\S]*\]/);
+        return JSON.parse(jsonMatch ? jsonMatch[0] : response);
+    } catch (e) {
+        console.error("Failed to parse advanced quiz JSON", e);
+        return [];
+    }
+};
+
+/**
+ * Generate academic citation in specified format
+ * @param {string} text - Document text (for analysis)
+ * @param {string} format - 'apa', 'mla', 'chicago'
+ * @param {Object} pageRange - { start, end }
+ * @param {Object} metadata - { title, author, year, publisher }
+ */
+export const generateCitation = async (text, format = 'apa', pageRange = null, metadata = {}) => {
+    const { title = 'Untitled Document', author = 'Unknown Author', year = new Date().getFullYear(), publisher = 'N/A' } = metadata;
+
+    const pageRef = pageRange ? `pp. ${pageRange.start}-${pageRange.end}` : '';
+
+    let formatInstructions = '';
+
+    if (format === 'apa') {
+        formatInstructions = `APA 7th Edition format:
+Author, A. A. (Year). Title of work. Publisher. ${pageRef}
+
+Example:
+Smith, J. D. (2023). Understanding Neural Networks. Academic Press. pp. 45-67`;
+    } else if (format === 'mla') {
+        formatInstructions = `MLA 9th Edition format:
+Author Last, First. Title of Work. Publisher, Year. ${pageRef}
+
+Example:
+Smith, John David. Understanding Neural Networks. Academic Press, 2023. pp. 45-67`;
+    } else if (format === 'chicago') {
+        formatInstructions = `Chicago 17th Edition format:
+Author Last, First. Year. Title of Work. Publisher. ${pageRef}
+
+Example:
+Smith, John David. 2023. Understanding Neural Networks. Academic Press. pp. 45-67`;
+    }
+
+    const prompt = `Generate a proper academic citation in ${format.toUpperCase()} format.
+
+${formatInstructions}
+
+Document Information:
+- Title: ${title}
+- Author: ${author}
+- Year: ${year}
+- Publisher: ${publisher}
+${pageRef ? `- Pages: ${pageRef}` : ''}
+
+Return ONLY the formatted citation, nothing else.`;
+
+    return callAIFunc(prompt, text.substring(0, 5000));
+};
+
+/**
+ * Generate summary with page references
+ * @param {string} text - Full text with page markers
+ * @param {Object} pageRange - { start, end }
+ */
+export const summarizeWithPageRefs = async (text, pageRange) => {
+    const prompt = `Summarize the following content from pages ${pageRange.start} to ${pageRange.end}.
+
+For each major point, include the specific page number(s) where that information appears.
+
+Format your response as:
+**Main Point** (p. X-Y)
+- Supporting detail
+- Supporting detail
+
+**Another Main Point** (p. Z)
+- Supporting detail
+
+Keep bullet points concise and actionable.`;
+
+    return callAIFunc(prompt, text.substring(0, 60000));
+};

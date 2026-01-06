@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { usePDF } from '../context/PDFContext';
 
 const Thumbnails = () => {
@@ -28,13 +28,18 @@ const Thumbnails = () => {
         }
     };
 
+    // Immediate page navigation handler
+    const handleThumbnailClick = (pageNum) => {
+        setCurrentPage(pageNum);
+    };
+
     return (
         <div className="thumbnails-container" ref={containerRef}>
             {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
                 <div
                     key={pageNum}
                     className={`thumbnail-wrapper ${currentPage === pageNum ? 'active' : ''}`}
-                    onClick={() => setCurrentPage(pageNum)}
+                    onClick={() => handleThumbnailClick(pageNum)}
                     style={{ marginBottom: '1rem', cursor: 'pointer', textAlign: 'center' }}
                 >
                     <ThumbnailCanvas pageNum={pageNum} renderThumbnail={renderThumbnail} />
@@ -48,16 +53,37 @@ const Thumbnails = () => {
 // Separate component to handle individual canvas rendering lifecycle
 const ThumbnailCanvas = ({ pageNum, renderThumbnail }) => {
     const canvasRef = useRef(null);
+    const containerRef = useRef(null);
+    const [isVisible, setIsVisible] = useState(false);
     const hasRendered = useRef(false);
 
     useEffect(() => {
-        if (canvasRef.current && !hasRendered.current) {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsVisible(true);
+                    observer.disconnect();
+                }
+            },
+            { rootMargin: '100px' }
+        );
+
+        if (containerRef.current) observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (isVisible && canvasRef.current && !hasRendered.current) {
             renderThumbnail(pageNum, canvasRef.current);
             hasRendered.current = true;
         }
-    }, [pageNum, renderThumbnail]);
+    }, [isVisible, pageNum, renderThumbnail]);
 
-    return <canvas ref={canvasRef} style={{ border: '1px solid var(--border-color)', borderRadius: '4px' }} />;
+    return (
+        <div ref={containerRef} style={{ minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <canvas ref={canvasRef} style={{ border: '1px solid var(--border-color)', borderRadius: '4px', maxWidth: '100%' }} />
+        </div>
+    );
 };
 
 export default Thumbnails;

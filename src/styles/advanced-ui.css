@@ -573,3 +573,24 @@
 .opacity-80 {
     opacity: 0.8;
 }
+
+.overflow-y-auto {
+    overflow-y: auto;
+}
+
+.overflow-x-auto {
+    overflow-x: auto;
+}
+
+.overflow-hidden {
+    overflow: hidden;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}

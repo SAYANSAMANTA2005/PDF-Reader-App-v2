@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { usePDF } from '../context/PDFContext';
 import {
     Users,
@@ -48,6 +49,10 @@ import {
     autoPlanStudy
 } from '../utils/growthService';
 import { setApiKeys } from '../utils/aiService';
+import PomodoroTimer from './PomodoroTimer';
+import AmbientSoundPlayer from './AmbientSoundPlayer';
+import StudyStats from './StudyStats';
+import * as storage from '../utils/storageService';
 
 const EcosystemPanel = () => {
     const {
@@ -211,12 +216,57 @@ const EcosystemPanel = () => {
                 )}
 
                 {activeTab === 'rooms' && (
-                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                        {/* Room Templates */}
+                        <section>
+                            <h4 className="text-[10px] font-black text-secondary uppercase tracking-widest px-1 mb-4 flex items-center gap-2">
+                                <PlayCircle size={14} className="text-rose-500" />
+                                Study Room Templates
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                {[
+                                    { name: 'Solo Focus', desc: 'Deep work mode', icon: '🎯', color: 'from-blue-500 to-cyan-500' },
+                                    { name: 'Group Study', desc: 'Collaborative', icon: '👥', color: 'from-purple-500 to-pink-500' },
+                                    { name: 'Exam Prep', desc: 'High intensity', icon: '🔥', color: 'from-orange-500 to-red-500' },
+                                    { name: 'Research Lab', desc: 'Long-form reading', icon: '🔬', color: 'from-emerald-500 to-teal-500' }
+                                ].map((template, i) => (
+                                    <motion.button
+                                        key={template.name}
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        className="glass-card p-4 text-left group hover:border-accent transition"
+                                    >
+                                        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${template.color} flex items-center justify-center text-2xl mb-2 shadow-lg`}>
+                                            {template.icon}
+                                        </div>
+                                        <p className="text-xs font-black text-primary">{template.name}</p>
+                                        <p className="text-[9px] text-secondary mt-0.5">{template.desc}</p>
+                                    </motion.button>
+                                ))}
+                            </div>
+                        </section>
+
+                        {/* Pomodoro Timer */}
+                        <PomodoroTimer onSessionComplete={() => {
+                            // Add study session to stats
+                            const studyData = storage.getItem('study_statistics', { sessions: [], streak: 0 });
+                            studyData.sessions.push({
+                                date: new Date().toISOString(),
+                                minutes: 25,
+                                pages: 0
+                            });
+                            storage.setItem('study_statistics', studyData);
+                        }} />
+
+                        {/* Study Statistics */}
+                        <StudyStats />
+
+                        {/* Live Study Rooms */}
                         <section>
                             <div className="flex justify-between items-center mb-4 px-1">
                                 <h4 className="text-[10px] font-black text-secondary uppercase tracking-widest flex items-center gap-2">
-                                    <PlayCircle size={14} className="text-rose-500" />
-                                    Live Study Rooms
+                                    <Users2 size={14} className="text-indigo-500" />
+                                    Live Community Rooms
                                 </h4>
                                 <button className="bg-accent/10 p-2 rounded-xl text-accent hover:bg-accent/20 transition">
                                     <Plus size={16} />
@@ -268,6 +318,75 @@ const EcosystemPanel = () => {
                                 ))}
                             </div>
                         </section>
+                    </div>
+                )}
+
+                {activeTab === 'planner' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                        {/* Intelligent Study Course */}
+                        <section className="space-y-4">
+                            <h4 className="text-[10px] font-black text-secondary uppercase tracking-widest px-1 flex items-center gap-2">
+                                <Rocket size={14} className="text-orange-500" />
+                                Study Course Overview
+                            </h4>
+                            <div className="glass-card p-5 bg-gradient-to-br from-secondary/50 to-bg-secondary border-none shadow-sm space-y-4">
+                                <div className="flex items-start gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-600 flex-shrink-0">
+                                        <Zap size={24} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h5 className="text-xs font-black text-primary">Mastering the Fundamentals</h5>
+                                        <p className="text-[10px] text-secondary font-medium mt-1 leading-relaxed">System-generated study path based on your recent PDF annotations and difficulty markers.</p>
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    {[
+                                        { task: "Finish Chapter 4 Notes", status: "completed" },
+                                        { task: "Generate Flashcards for Equations", status: "pending" },
+                                        { task: "Take Mock Quiz (10 mins)", status: "pending" }
+                                    ].map((item, i) => (
+                                        <div key={i} className="flex items-center gap-3 p-3 bg-primary/40 rounded-xl">
+                                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${item.status === 'completed' ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-divider'}`}>
+                                                {item.status === 'completed' && <CheckCircle2 size={10} />}
+                                            </div>
+                                            <span className={`text-[10px] font-bold ${item.status === 'completed' ? 'text-secondary line-through' : 'text-primary'}`}>
+                                                {item.task}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Focus Mode Planner */}
+                        <section className="space-y-4">
+                            <h4 className="text-[10px] font-black text-secondary uppercase tracking-widest px-1 flex items-center gap-2">
+                                <Target size={14} className="text-accent" />
+                                Today's Focus Goals
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="glass-card p-4 flex flex-col items-center gap-2 border-b-4 border-b-accent">
+                                    <span className="text-lg font-black text-accent">3.5h</span>
+                                    <span className="text-[9px] font-black text-secondary uppercase">Target Time</span>
+                                </div>
+                                <div className="glass-card p-4 flex flex-col items-center gap-2 border-b-4 border-b-emerald-500">
+                                    <span className="text-lg font-black text-emerald-500">12</span>
+                                    <span className="text-[9px] font-black text-secondary uppercase">Pages Target</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Auto-Plan Generator */}
+                        <div className="bg-bg-secondary border-2 border-dashed border-divider p-6 rounded-2xl text-center space-y-4">
+                            <Calendar size={32} className="mx-auto text-secondary opacity-30" />
+                            <div className="space-y-1">
+                                <p className="text-xs font-black text-primary">Need a structured plan?</p>
+                                <p className="text-[10px] text-secondary font-medium">Auto-generate a daily schedule using AI.</p>
+                            </div>
+                            <button onClick={autoPlanStudy} className="premium-btn w-full">
+                                GENERATE MASTER PLAN
+                            </button>
+                        </div>
                     </div>
                 )}
 
