@@ -249,6 +249,28 @@
     display: block;
     max-width: 100%;
     height: auto;
+    transition: filter 0.3s ease;
+}
+
+/* Eye-Comfort Canvas Filters */
+[data-theme='sepia'] .pdf-page-container canvas {
+    filter: sepia(0.35) contrast(0.95) brightness(1.02);
+}
+
+[data-theme='dark'] .pdf-page-container canvas {
+    filter: invert(0.9) hue-rotate(180deg) brightness(1.1) contrast(0.9);
+}
+
+[data-theme='forest'] .pdf-page-container canvas {
+    filter: sepia(0.25) hue-rotate(90deg) brightness(0.95) contrast(1.05);
+}
+
+[data-theme='ocean'] .pdf-page-container canvas {
+    filter: invert(0.9) hue-rotate(200deg) brightness(1.1) contrast(0.9);
+}
+
+[data-theme='paper'] .pdf-page-container canvas {
+    filter: contrast(0.9) brightness(1.02);
 }
 
 /* Text Selection Layer - Crucial for text selection */

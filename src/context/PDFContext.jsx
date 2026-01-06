@@ -373,7 +373,11 @@ export const PDFProvider = ({ children }) => {
     }, []);
 
     const toggleTheme = () => {
-        const newTheme = theme === 'light' ? 'dark' : 'light';
+        const themes = ['light', 'dark', 'sepia', 'sepia-ui', 'forest', 'ocean', 'paper'];
+        const currentIndex = themes.indexOf(theme);
+        const nextIndex = (currentIndex + 1) % themes.length;
+        const newTheme = themes[nextIndex];
+
         setTheme(newTheme);
         localStorage.setItem('theme', newTheme);
         document.documentElement.setAttribute('data-theme', newTheme);
@@ -413,6 +417,7 @@ export const PDFProvider = ({ children }) => {
         isLoading,
         error,
         theme,
+        setTheme,
         toggleTheme,
         loadPDF,
         cleanupPDFResources,

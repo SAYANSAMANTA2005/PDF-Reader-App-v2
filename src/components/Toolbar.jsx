@@ -22,8 +22,15 @@ import {
     MessageSquare,
     Sigma,
     Brain,
-    Sparkles
+    Sparkles,
+    Palette,
+    Coffee,
+    TreePine,
+    Waves,
+    FileType,
+    X
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import DrawingPanel from './DrawingPanel';
 import EquationInsightPanel from './EquationInsightPanel';
 
@@ -34,7 +41,7 @@ const Toolbar = () => {
         currentPage, setCurrentPage,
         numPages,
         setIsSidebarOpen, isSidebarOpen,
-        theme, toggleTheme,
+        theme, setTheme, toggleTheme,
         pdfDocument,
         annotationMode, setAnnotationMode,
         isTwoPageMode, setIsTwoPageMode,
@@ -50,6 +57,7 @@ const Toolbar = () => {
     const [isDrawingPanelOpen, setIsDrawingPanelOpen] = useState(false);
     const [isTextToSpeechOpen, setIsTextToSpeechOpen] = useState(false);
     const [isPDFChatOpen, setIsPDFChatOpen] = useState(false);
+    const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
     const [pageInputValue, setPageInputValue] = useState('');
 
     // Sync page input with current page
@@ -261,18 +269,80 @@ const Toolbar = () => {
                 </button>
             </div>
 
-            <div className="toolbar-group">
+            <div className="toolbar-group relative">
                 <div style={{ maxWidth: '250px', flex: 1 }}>
                     <SearchBar />
                 </div>
                 <div className="divider"></div>
-                <button
-                    onClick={toggleTheme}
-                    title="Toggle Theme"
-                    className={`tool-btn ${theme === 'dark' ? 'active' : ''}`}
-                >
-                    {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-                </button>
+
+                <div className="relative">
+                    <button
+                        onClick={() => setIsThemePickerOpen(!isThemePickerOpen)}
+                        title="Change Reading Theme"
+                        className={`tool-btn ${isThemePickerOpen ? 'active' : ''}`}
+                    >
+                        <Palette size={20} />
+                    </button>
+
+                    <AnimatePresence>
+                        {isThemePickerOpen && (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9, y: -20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, y: -20 }}
+                                className="theme-picker-card"
+                            >
+                                <div className="theme-picker-header">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black tracking-[0.2em] text-accent uppercase" style={{ opacity: 0.8 }}>Reading</span>
+                                        <span className="text-sm font-black text-primary uppercase" style={{ letterSpacing: '0.02em' }}>Themes</span>
+                                    </div>
+                                    <button
+                                        onClick={() => setIsThemePickerOpen(false)}
+                                        style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+
+                                <div className="theme-picker-grid">
+                                    {[
+                                        { id: 'light', icon: <Sun />, label: 'Day', color: '#f8fafc' },
+                                        { id: 'dark', icon: <Moon />, label: 'Night', color: '#0f172a' },
+                                        { id: 'sepia', icon: <Coffee />, label: 'Sepia Full', color: '#e6dfc7' },
+                                        { id: 'sepia-ui', icon: <Palette />, label: 'Sepia Lite', color: '#f4ecd8' },
+                                        { id: 'forest', icon: <TreePine />, label: 'Forest', color: '#1a241e' },
+                                        { id: 'ocean', icon: <Waves />, label: 'Ocean', color: '#0d1e3d' },
+                                        { id: 'paper', icon: <FileType />, label: 'Paper', color: '#fcfcfc' }
+                                    ].map((t) => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => {
+                                                setTheme(t.id);
+                                                // Immediate application fallback
+                                                document.documentElement.setAttribute('data-theme', t.id);
+                                                localStorage.setItem('theme', t.id);
+                                                setIsThemePickerOpen(false);
+                                            }}
+                                            className={`theme-option-btn ${theme === t.id ? 'active' : ''}`}
+                                        >
+                                            <div className="theme-swatch" style={{ background: t.color }}>
+                                                <div className="theme-swatch-glow" style={{ background: t.color }} />
+                                                <div style={{ position: 'relative', zIndex: 2, display: 'flex' }}>
+                                                    {React.cloneElement(t.icon, {
+                                                        size: 11,
+                                                        color: (theme === t.id) ? '#fff' : ((t.id === 'light' || t.id.includes('sepia') || t.id === 'paper') ? '#433422' : '#f1f5f9')
+                                                    })}
+                                                </div>
+                                            </div>
+                                            <span className="theme-label">{t.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
 
             {/* Text-to-Speech Panel */}
@@ -292,7 +362,7 @@ const Toolbar = () => {
                     onClose={() => setActiveEquation(null)}
                 />
             )}
-        </div>
+        </div >
     );
 };
 
