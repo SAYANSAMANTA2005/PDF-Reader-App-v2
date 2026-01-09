@@ -12,9 +12,14 @@ import {
     ChevronDown,
     ChevronUp,
     X,
-    RotateCcw
+    RotateCcw,
+    Sparkles,
+    Loader2
 } from 'lucide-react';
+import * as aiService from '../utils/aiService';
+import { useToast } from './ToastNotification';
 import '../styles/textToSpeech.css';
+
 
 const TextToSpeechPanel = ({ onClose }) => {
     const {
@@ -32,7 +37,9 @@ const TextToSpeechPanel = ({ onClose }) => {
     const [selectedVoice, setSelectedVoiceState] = useState(null);
     const [isHighlighting, setIsHighlighting] = useState(true);
     const [highlightedRange, setHighlightedRange] = useState(null);
-    const [status, setStatus] = useState('idle'); // idle, playing, paused
+    const [status, setStatus] = useState('idle'); // idle, playing, paused, summarizing
+    const toast = useToast();
+
 
     // Initialize voices
     useEffect(() => {
@@ -189,6 +196,34 @@ const TextToSpeechPanel = ({ onClose }) => {
         setHighlightedRange(null);
     };
 
+    const handleExplainSimply = async () => {
+        if (!selectedText) {
+            toast.error('Please select text or read a page first');
+            return;
+        }
+
+        setStatus('summarizing');
+        toast.info("AI is simplifying the text for audio explanation...");
+        try {
+            const summary = await aiService.generateAudioSummary(selectedText);
+            setSelectedText(summary);
+
+            // Auto play the summary
+            const highlightCallback = isHighlighting ? (start, end) => {
+                setHighlightedRange({ start, end });
+            } : null;
+
+            ttsService.speakText(summary, highlightCallback);
+            toast.success("Summary generated and playing!");
+        } catch (error) {
+            console.error('Error summarizing:', error);
+            toast.error('Failed to generate audio summary');
+        } finally {
+            setStatus('idle');
+        }
+    };
+
+
     return (
         <div className={`tts-panel ${isExpanded ? 'expanded' : 'collapsed'}`}>
             <div className="tts-header">
@@ -204,7 +239,9 @@ const TextToSpeechPanel = ({ onClose }) => {
                     >
                         {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </button>
+                    {status === 'summarizing' && <Loader2 size={16} className="animate-spin text-accent" />}
                     <button
+
                         className="tts-action-btn close-btn"
                         onClick={onClose}
                         title="Close"
@@ -244,8 +281,16 @@ const TextToSpeechPanel = ({ onClose }) => {
                             <button className="tts-btn btn-ghost" onClick={handleReadAllPages}>
                                 <Zap size={16} /> Read All
                             </button>
+                            <button
+                                className="tts-btn btn-premium-gradient"
+                                onClick={handleExplainSimply}
+                                disabled={status === 'summarizing' || !selectedText}
+                            >
+                                <Sparkles size={14} className="animate-pulse" /> Explain Simply
+                            </button>
                         </div>
                     </div>
+
 
                     {/* Voice Selection */}
                     <div className="tts-section">

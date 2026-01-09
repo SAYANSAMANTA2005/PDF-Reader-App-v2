@@ -7,7 +7,10 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
         annotations,
         setAnnotations,
         addAnnotation, // Use this for history tracking
+        addImageAnnotation,
+        updateAnnotation,
         annotationColor,
+
         brushThickness,
         searchResults,
         currentMatchIndex
@@ -15,7 +18,10 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
 
     const [isDrawing, setIsDrawing] = useState(false);
     const [currentPath, setCurrentPath] = useState([]);
+    const [draggingId, setDraggingId] = useState(null);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const svgRef = useRef(null);
+
 
     // Get annotations for this page
     const pageAnnotations = annotations[pageNum] || [];
@@ -54,14 +60,24 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
     };
 
     const handleMouseMove = (e) => {
+        if (draggingId) {
+            const coords = getCoordinates(e);
+            updateAnnotation(pageNum, draggingId, {
+                x: coords.x - dragOffset.x,
+                y: coords.y - dragOffset.y
+            });
+            return;
+        }
         if (!isDrawing || annotationMode === 'none') return;
         const coords = getCoordinates(e);
         setCurrentPath(prev => [...prev, coords]);
     };
 
     const handleMouseUp = () => {
+        setDraggingId(null);
         if (!isDrawing) return;
         setIsDrawing(false);
+
 
         if (currentPath.length > 0) {
             const newAnnotation = {
@@ -114,28 +130,56 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
             >
                 {/* Render Existing Annotations */}
-                {pageAnnotations.map((ann, idx) => (
-                    <path
-                        key={idx}
-                        d={pointsToPath(ann.points)}
-                        stroke={ann.color}
-                        strokeWidth={ann.strokeWidth || 3}
-                        fill="none"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        opacity={ann.opacity || 1}
-                        onClick={() => handleErase(idx)}
-                        onMouseEnter={() => {
-                            if (isDrawing && annotationMode === 'erase') {
-                                handleErase(idx);
-                            }
-                        }}
-                        style={{
-                            cursor: annotationMode === 'erase' ? 'pointer' : 'inherit',
-                            pointerEvents: annotationMode === 'erase' ? 'auto' : 'none'
-                        }}
-                    />
-                ))}
+                {pageAnnotations.map((ann, idx) => {
+                    if (ann.type === 'image') {
+                        return (
+                            <image
+                                key={ann.id || idx}
+                                href={ann.src}
+                                x={ann.x * width}
+                                y={ann.y * height}
+                                width={ann.width * width}
+                                height={ann.height * height}
+                                style={{
+                                    cursor: draggingId === ann.id ? 'grabbing' : 'grab',
+                                    pointerEvents: 'auto'
+                                }}
+                                onMouseDown={(e) => {
+                                    e.stopPropagation();
+                                    const coords = getCoordinates(e);
+                                    setDraggingId(ann.id);
+                                    setDragOffset({
+                                        x: coords.x - ann.x,
+                                        y: coords.y - ann.y
+                                    });
+                                }}
+                            />
+                        );
+                    }
+                    return (
+                        <path
+                            key={ann.id || idx}
+                            d={pointsToPath(ann.points)}
+                            stroke={ann.color}
+                            strokeWidth={ann.strokeWidth || 3}
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            opacity={ann.opacity || 1}
+                            onClick={() => handleErase(idx)}
+                            onMouseEnter={() => {
+                                if (isDrawing && annotationMode === 'erase') {
+                                    handleErase(idx);
+                                }
+                            }}
+                            style={{
+                                cursor: annotationMode === 'erase' ? 'pointer' : 'inherit',
+                                pointerEvents: annotationMode === 'erase' ? 'auto' : 'none'
+                            }}
+                        />
+                    );
+                })}
+
 
                 {/* Render Search Highlights */}
                 {searchResults.map((match, idx) => {

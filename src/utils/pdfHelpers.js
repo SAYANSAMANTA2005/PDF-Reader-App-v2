@@ -201,3 +201,36 @@ export const getPageDimensions = async (pdfDocument, pageNum) => {
         rotation: page.rotate
     };
 };
+
+/**
+ * Extracts all text with detailed page metadata for AI citation.
+ * @param {Object} pdfDocument - The pdf.js document object.
+ * @returns {Promise<Array>} - Array of objects { page: number, content: string }
+ */
+export const extractTextWithCitations = async (pdfDocument) => {
+    const numPages = pdfDocument.numPages;
+    const chunks = [];
+
+    for (let i = 1; i <= numPages; i++) {
+        try {
+            const page = await pdfDocument.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = reconstructTextSpacially(textContent.items);
+
+            // Clean up text slightly to reduce token count
+            const cleanText = pageText.replace(/\s+/g, ' ').trim();
+
+            if (cleanText.length > 50) { // Ignore empty/very short pages
+                chunks.push({
+                    page: i,
+                    content: cleanText
+                });
+            }
+        } catch (error) {
+            console.warn(`Failed to extract text from page ${i}`, error);
+        }
+    }
+
+    return chunks;
+};
+

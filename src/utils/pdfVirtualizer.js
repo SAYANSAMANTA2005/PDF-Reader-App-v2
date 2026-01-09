@@ -10,8 +10,9 @@ export class PDFVirtualizer {
     constructor(options = {}) {
         this.options = {
             pageHeight: options.pageHeight || 1000, // pixels
-            bufferPages: options.bufferPages || 2, // Pages to render above/below viewport
+            bufferPages: options.bufferPages || 6, // Increased for aggressive preloading
             containerHeight: options.containerHeight || 800, // Viewport height
+
         };
 
         this.scrollY = 0;
@@ -71,7 +72,8 @@ export class PDFVirtualizer {
  * LRU Page Cache - Keeps only recent pages in memory
  */
 export class LRUPageCache {
-    constructor(maxSize = 10) {
+    constructor(maxSize = 30) {
+
         this.maxSize = maxSize;
         this.cache = new Map(); // page -> { data, timestamp }
         this.accessOrder = []; // Track access order for LRU

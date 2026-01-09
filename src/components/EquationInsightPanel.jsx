@@ -18,7 +18,7 @@ const EquationInsightPanel = ({ equation, contextText, onClose }) => {
         const fetchInsight = async () => {
             setIsLoading(true);
             try {
-                const res = await aiService.explainEquation(equation, contextText);
+                const res = await aiService.solveMathEquation(equation);
                 setInsight(res);
             } catch (err) {
                 console.error(err);

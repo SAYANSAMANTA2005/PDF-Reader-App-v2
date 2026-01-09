@@ -7,8 +7,39 @@ import { ToastProvider } from './components/ToastNotification';
 import { Upload, FileText, AlertCircle, XCircle, Zap } from 'lucide-react';
 
 const App = () => {
-    const { pdfDocument, loadPDF, isSidebarOpen, isLoading, error, cognitiveLoad, setCognitiveLoad } = usePDF();
+    const {
+        pdfDocument, loadPDF, isSidebarOpen, setIsSidebarOpen,
+        isLoading, error, cognitiveLoad, setCognitiveLoad,
+        setActiveSidebarTab
+    } = usePDF();
     const [isDragging, setIsDragging] = useState(false);
+
+    // Keyboard Shortcuts
+    React.useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.altKey) {
+                switch (e.key.toLowerCase()) {
+                    case 'o':
+                        setActiveSidebarTab('store');
+                        setIsSidebarOpen(true);
+                        break;
+                    case 'p':
+                        setActiveSidebarTab('store');
+                        setIsSidebarOpen(true);
+                        break;
+                    case 'h':
+                        setActiveSidebarTab('store');
+                        setIsSidebarOpen(true);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [setActiveSidebarTab, setIsSidebarOpen]);
+
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];

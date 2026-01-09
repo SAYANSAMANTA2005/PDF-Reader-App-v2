@@ -28,8 +28,10 @@ import {
     TreePine,
     Waves,
     FileType,
+    Image as ImageIcon,
     X
 } from 'lucide-react';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import DrawingPanel from './DrawingPanel';
 import EquationInsightPanel from './EquationInsightPanel';
@@ -51,8 +53,11 @@ const Toolbar = () => {
         isMathMode, setIsMathMode,
         activeEquation, setActiveEquation,
         isActiveRecallMode, setIsActiveRecallMode,
-        setActiveSidebarTab, isPremium
+        setActiveSidebarTab, isPremium,
+        addImageAnnotation,
+        setActiveToolId // Add this
     } = usePDF();
+
 
     const [isDrawingPanelOpen, setIsDrawingPanelOpen] = useState(false);
     const [isTextToSpeechOpen, setIsTextToSpeechOpen] = useState(false);
@@ -138,7 +143,32 @@ const Toolbar = () => {
                         <ChevronRight size={20} />
                     </button>
                 </div>
+                <div className="divider"></div>
+                <button
+                    onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = (e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (re) => {
+                                    addImageAnnotation(currentPage, re.target.result, 0.1, 0.1, 0.2, 0.2);
+                                };
+                                reader.readAsDataURL(file);
+                            }
+                        };
+                        input.click();
+                    }}
+                    className="tool-btn"
+                    title="Insert Image / Object"
+                    disabled={!pdfDocument}
+                >
+                    <ImageIcon size={20} />
+                </button>
             </div>
+
 
             <div className="toolbar-group">
                 <button onClick={handleZoomOut} disabled={!pdfDocument} title="Zoom Out">
@@ -236,11 +266,12 @@ const Toolbar = () => {
                 </button>
                 <button
                     onClick={() => {
+                        setIsSidebarOpen(true);
+                        setActiveSidebarTab('store');
+                        setActiveToolId('equations'); // Directly open the tool
+
+                        // Legacy mode toggle (optional, keeping for safety)
                         setIsMathMode(!isMathMode);
-                        if (!isMathMode) {
-                            setIsPDFChatOpen(false);
-                            setIsTextToSpeechOpen(false);
-                        }
                     }}
                     className={`tool-btn ${isMathMode ? 'active' : ''}`}
                     style={{ color: isMathMode ? 'var(--accent-color)' : 'inherit' }}

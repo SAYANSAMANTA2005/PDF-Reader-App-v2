@@ -19,6 +19,7 @@ import {
     FileSearch,
     Share,
     Bookmark,
+    RefreshCw,
     X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -143,6 +144,7 @@ const ProStore = () => {
                     <div className="grid md:grid-cols-3 gap-6">
                         {[
                             { icon: <Brain size={24} />, title: "AI Quiz Generator", desc: "Smart exam prep with adaptive difficulty", color: "from-purple-500 to-indigo-600" },
+                            { icon: <RefreshCw size={24} />, title: "Elite Converter", desc: "PDF to Word, Excel & Image instantly", color: "from-emerald-500 to-cyan-600" },
                             { icon: <FileSearch size={24} />, title: "Deep OCR Engine", desc: "Search any text in scanned PDFs", color: "from-blue-500 to-cyan-600" },
                             { icon: <Mic size={24} />, title: "Neural TTS", desc: "Listen to your documents with AI voice", color: "from-orange-500 to-red-600" },
                             { icon: <Share size={24} />, title: "Smart Export", desc: "Export to Notion, Obsidian & more", color: "from-pink-500 to-rose-600" },

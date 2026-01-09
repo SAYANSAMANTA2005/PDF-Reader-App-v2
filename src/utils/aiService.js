@@ -633,3 +633,157 @@ export const performNeuralOCR = async (base64Image) => {
 
     return (await result.response).text();
 };
+
+/**
+ * Detects and masks PII (Personally Identifiable Information)
+ */
+export const maskPII = async (text) => {
+    const prompt = `Identify all Personally Identifiable Information (PII) in the following text. 
+    This includes: Aadhaar numbers, PAN numbers, full names, mobile numbers, email addresses, and home addresses (specifically Indian formats like Aadhaar/PAN).
+    Return the text with all PII replaced by [MASKED].
+    Return ONLY the masked text.`;
+    return callAIFunc(prompt, text.substring(0, 40000));
+};
+
+/**
+ * Predicts risks and liabilities from context
+ */
+export const predictRisks = async (text) => {
+    const prompt = `Act as a legal and risk management expert. Analyze the following text for potential risks, liabilities, or unfavorable clauses.
+    Identify:
+    1. Liability exposing clauses.
+    2. Missing critical information.
+    3. Potential financial risks (e.g. late fees, penalties).
+    4. Compliance issues.
+    Return a structured report with Risk Level (Low/Medium/High) and recommendations.`;
+    return callAIFunc(prompt, text.substring(0, 50000));
+};
+
+/**
+ * Auto-translate sections
+ */
+export const translateText = async (text, targetLang = 'Bengali') => {
+    const prompt = `Translate the following text into ${targetLang}. 
+    Ensure the translation is natural, contextually accurate, and maintains professional/academic tone.
+    If it is technical text, use appropriate technical terms in ${targetLang}.
+    Return ONLY the translated text.`;
+    return callAIFunc(prompt, text.substring(0, 30000));
+};
+
+/**
+ * Audio Summaries "Explain para X simply"
+ */
+export const generateAudioSummary = async (text) => {
+    const prompt = `Create a short, spoken-word style summary of the following content. 
+    Imagine you are explaining this to someone over audio. 
+    Use clear, simple language and a conversational tone.
+    Keep it under 300 words.`;
+    return callAIFunc(prompt, text.substring(0, 20000));
+};
+
+/**
+ * Solve or Explain Math Equations
+ */
+export const solveMathEquation = async (equationText) => {
+    const prompt = `You are a mathematical genius and engineering expert.
+    Analyze the following equation or math problem:
+    "${equationText}"
+    
+    Provide:
+    1. **Interpretation**: What does this equation represent?
+    2. **Step-by-Step Solution/Derivation**: If it's a problem, solve it. If it's a formula, derive it or show its usage.
+    3. **Key Concepts**: Briefly explain the underlying mathematical concepts.
+    4. **LaTeX**: Provide the corrected LaTeX form if applicable.
+    
+    Format nicely with bold headers.`;
+
+    return callAIFunc(prompt, "");
+};
+
+
+/**
+ * ============================================================================
+ * PHASE 6: WORLD-CLASS RAG ENGINE (Source Grounding)
+ * ============================================================================
+ */
+
+/**
+ * Splits text into overlapping chunks for better context retrieval.
+ */
+const chunkText = (text, chunkSize = 1000, overlap = 200) => {
+    const chunks = [];
+    for (let i = 0; i < text.length; i += (chunkSize - overlap)) {
+        chunks.push(text.substring(i, i + chunkSize));
+    }
+    return chunks;
+};
+
+/**
+ * RAG-Lite: Finds most relevant page chunks based on query similarity.
+ * Uses term-frequency / keyword overlap since we don't have local embeddings yet.
+ */
+const findRelevantChunks = (query, pagesData) => {
+    if (!pagesData || pagesData.length === 0) return [];
+
+    const queryTerms = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+
+    // Score each page based on term occurrence
+    const scoredPages = pagesData.map(page => {
+        const contentLower = page.content.toLowerCase();
+        let score = 0;
+
+        // Exact phrase match bonus
+        if (contentLower.includes(query.toLowerCase())) score += 10;
+
+        // Term frequency match
+        queryTerms.forEach(term => {
+            const regex = new RegExp(term, 'g');
+            const count = (contentLower.match(regex) || []).length;
+            score += count;
+        });
+
+        return { ...page, score };
+    });
+
+    // Sort by score and take top 5
+    return scoredPages
+        .filter(p => p.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+};
+
+/**
+ * Ask PDF with Grounded Citations (True AI)
+ * Uses RAG to find specific pages and cites them.
+ */
+export const askPDFGrounded = async (question, pagesData, history = []) => {
+    // 1. Retrieve relevant context
+    const setContext = findRelevantChunks(question, pagesData);
+
+    // 2. Format context for LLM
+    const contextString = setContext.map(c => `[PAGE ${c.page}]: ${c.content}`).join('\n\n');
+
+    if (!contextString) {
+        return "I couldn't find any relevant information in the document to answer your question. Please try rephrasing or asking about a different topic.";
+    }
+
+    // 3. Construct prompt
+    const prompt = `You are a world-class research assistant. Answer the user's question using ONLY the provided context from the PDF.
+    
+    CRITICAL INSTRUCTIONS:
+    1.  **Cite your sources**: Every time you state a fact, append the page number like this: [Page 5].
+    2.  **Be precise**: Do not hallucinate. If the answer isn't in the context, say so.
+    3.  **Structure**: Use bullet points for list-like answers.
+    
+    User Question: "${question}"
+    
+    Retrieved Context:
+    ${contextString.substring(0, 50000)} // Safety cap
+    
+    Chat History:
+    ${history.map(h => `${h.role}: ${h.content}`).join('\n')}
+    
+    Answer:`;
+
+    return callAIFunc(prompt, "");
+};

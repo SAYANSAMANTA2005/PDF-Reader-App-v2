@@ -367,6 +367,42 @@ export const Preferences = {
     reset: () => setItem(StorageKeys.USER_PREFERENCES, {})
 };
 
+
+
+/**
+ * Version Control Management
+ */
+export const VersionControl = {
+    getHistory: (fileName) => {
+        const allHistory = getItem('version_control', {});
+        return allHistory[fileName] || [];
+    },
+
+    saveVersion: (fileName, data, message = 'Auto-save') => {
+        if (!fileName) return null;
+        const allHistory = getItem('version_control', {});
+        if (!allHistory[fileName]) allHistory[fileName] = [];
+
+        const version = {
+            id: `v_${Date.now()}`,
+            timestamp: Date.now(),
+            message,
+            data // This would be the state of annotations, forms, etc.
+        };
+
+        allHistory[fileName].unshift(version);
+        // Keep last 50 versions
+        allHistory[fileName] = allHistory[fileName].slice(0, 50);
+        setItem('version_control', allHistory);
+        return version;
+    },
+
+    restoreVersion: (fileName, versionId) => {
+        const history = VersionControl.getHistory(fileName);
+        return history.find(v => v.id === versionId);
+    }
+};
+
 export default {
     checkStorageAvailable,
     getStorageStats,
@@ -378,5 +414,7 @@ export default {
     TTSBookmarks,
     OCRHistory,
     ExportHistory,
-    Preferences
+    Preferences,
+    VersionControl
 };
+

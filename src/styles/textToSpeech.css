@@ -188,6 +188,26 @@
     background: rgba(0, 0, 0, 0.08);
 }
 
+.btn-premium-gradient {
+    background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+    color: white;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+}
+
+.btn-premium-gradient:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(168, 85, 247, 0.4);
+    filter: brightness(1.1);
+}
+
+.btn-premium-gradient:disabled {
+    opacity: 0.6;
+    filter: grayscale(0.5);
+    cursor: wait;
+}
+
+
 .tts-select {
     width: 100%;
     padding: 10px;

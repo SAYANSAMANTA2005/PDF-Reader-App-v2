@@ -17,6 +17,9 @@ const PricingComparison = ({ onSelectPlan }) => {
         { name: "Growth Tracking", free: false, pro: true, elite: true },
         { name: "Priority AI Models", free: false, pro: false, elite: true },
         { name: "Lifetime Updates", free: false, pro: false, elite: true },
+        { name: "Multi-Format Converter (Word, Excel, JPG)", free: false, pro: true, elite: true },
+        { name: "Batch File Processing", free: false, pro: false, elite: true },
+        { name: "OCR-Powered Document Recon", free: false, pro: false, elite: true },
         { name: "Custom Mentor Personas", free: false, pro: false, elite: true }
     ];
 

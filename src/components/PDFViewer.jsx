@@ -5,6 +5,28 @@ import AnnotationLayer from './AnnotationLayer';
 import ActiveRecallOverlay from './ActiveRecallOverlay';
 import { PDFVirtualizer, LRUPageCache, AdaptiveQualityRenderer } from '../utils/pdfVirtualizer';
 import { PageRenderScheduler } from '../utils/pdfPageScheduler';
+import { ocrService } from '../utils/OCRService';
+
+// Intersection Observer Hook for visibility detection
+const useIntersectionObserver = (ref, options) => {
+    const [isIntersecting, setIntersecting] = useState(false);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(([entry]) => {
+            setIntersecting(entry.isIntersecting);
+        }, options);
+
+        if (ref.current) {
+            observer.observe(ref.current);
+        }
+
+        return () => {
+            if (ref.current) observer.unobserve(ref.current);
+        };
+    }, [ref, options]);
+
+    return isIntersecting;
+};
 
 const PAGE_HEIGHT_ESTIMATE = 1100; // Default height for virtualizer
 const BUFFER_PAGES = 3; // Number of pages to buffer above/below viewport
@@ -341,6 +363,54 @@ const PDFPage = React.memo(({
     const renderTaskRef = useRef(null);
     const lastRenderQuality = useRef(null);
 
+    // Instant Scroll-OCR Logic
+    const containerRef = useRef(null);
+    const isVisible = useIntersectionObserver(containerRef, { threshold: 0.1 });
+    const [ocrData, setOcrData] = useState(null);
+    const [isOcrProcessing, setIsOcrProcessing] = useState(false);
+
+    useEffect(() => {
+        // Trigger OCR if: Page Visible AND Not Rendered/No Text AND Not Processing
+        if (isVisible && !isOcrProcessing && !ocrData) {
+            checkAndRunOCR();
+        }
+    }, [isVisible, isOcrProcessing, ocrData]);
+
+    const checkAndRunOCR = async () => {
+        try {
+            const page = await pdfDocument.getPage(pageNum);
+            const textContent = await page.getTextContent();
+
+            // If page has almost no text (likely scanned image)
+            if (textContent.items.length < 5) {
+                setIsOcrProcessing(true);
+                console.log(`🔍 OCR: Page ${pageNum} appears scanned. Queuing...`);
+
+                // Get high-quality image for OCR
+                const viewport = page.getViewport({ scale: 2.0 });
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+
+                await page.render({ canvasContext: ctx, viewport }).promise;
+                const imageBase64 = canvas.toDataURL('image/png');
+
+                // Send to BG Worker
+                const result = await ocrService.addToQueue(imageBase64);
+
+                // Convert simple text result to mock items if needed, or just store text
+                // Ideally we'd use bounding boxes from recognizeDetailed but for now let's just get text
+                setOcrData(result.words || result); // text or detailed object
+                console.log(`✅ OCR: Page ${pageNum} processed.`);
+            }
+        } catch (e) {
+            console.warn(`OCR Failed for page ${pageNum}`, e);
+        } finally {
+            setIsOcrProcessing(false);
+        }
+    };
+
     // Cleanup logic
     const cleanup = useCallback(() => {
         if (renderTaskRef.current) {
@@ -485,6 +555,7 @@ const PDFPage = React.memo(({
 
     return (
         <div
+            ref={containerRef}
             className="pdf-page-container"
             style={{
                 width: dimensions.width ? `${dimensions.width}px` : '600px',
@@ -510,7 +581,20 @@ const PDFPage = React.memo(({
                 </div>
             )}
             <canvas ref={canvasRef} />
-            <div className="textLayer" ref={textLayerRef} style={{ position: 'absolute', top: 0, left: 0 }}></div>
+            <div className="textLayer" ref={textLayerRef} style={{ position: 'absolute', top: 0, left: 0 }}>
+                {/* Fallback OCR Layer if native text is missing */}
+                {ocrData && (
+                    <div className="ocr-layer" style={{
+                        position: 'absolute', inset: 0,
+                        color: 'transparent', whiteSpace: 'pre-wrap',
+                        fontSize: `${12 * scale}px`, lineHeight: 1.5,
+                        pointerEvents: 'all', userSelect: 'text', cursor: 'text',
+                        padding: '20px', overflow: 'hidden'
+                    }}>
+                        {typeof ocrData === 'string' ? ocrData : ocrData.text}
+                    </div>
+                )}
+            </div>
             <AnnotationLayer width={dimensions.width} height={dimensions.height} scale={scale} pageNum={pageNum} />
 
             {isActiveRecallMode && !isUnlocked && (

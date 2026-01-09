@@ -19,7 +19,8 @@ import {
     askPDFWithContext,
     explainConcept,
     summarizePageRange,
-    askPDFWithSourceTracking
+    askPDFWithSourceTracking,
+    askPDFGrounded
 } from '../utils/aiService';
 import { hasApiKey } from '../utils/aiService';
 import '../styles/pdfContextChat.css';
@@ -28,7 +29,8 @@ const PDFContextChat = ({ onClose }) => {
     const {
         pdfDocument,
         currentPage,
-        numPages
+        numPages,
+        pdfPagesData // RAG Data
     } = usePDF();
 
     const [isExpanded, setIsExpanded] = useState(true);
@@ -148,8 +150,14 @@ const PDFContextChat = ({ onClose }) => {
                     pageText = await extractRangeText(start, end);
                 }
             } else if (contextType === 'all') {
-                // Extract first 100 pages for context
-                pageText = await extractRangeText(1, Math.min(100, numPages));
+                // Use RAG Engine if available, otherwise fallback to first 100 pages
+                if (pdfPagesData && pdfPagesData.length > 0) {
+                    // RAG mode enabled - pageText is not needed as we pass chunks directly
+                    pageText = "RAG_MODE";
+                    console.log("Using RAG Engine for query");
+                } else {
+                    pageText = await extractRangeText(1, Math.min(50, numPages));
+                }
             }
 
             // Check for specific patterns and handle accordingly
@@ -174,8 +182,14 @@ const PDFContextChat = ({ onClose }) => {
             } else if (query.includes('explain')) {
                 response = await explainConcept(pageText, inputValue.replace(/explain/gi, '').trim(), 'intermediate');
             } else {
-                // Use source tracking by default
-                response = await askPDFWithSourceTracking(inputValue, pageText, selectedText);
+                // Default Question Handling
+                if (contextType === 'all' && pageText === "RAG_MODE") {
+                    // True AI Mode
+                    response = await askPDFGrounded(inputValue, pdfPagesData, messages);
+                } else {
+                    // Standard context mode
+                    response = await askPDFWithSourceTracking(inputValue, pageText, selectedText);
+                }
             }
 
             const botMessage = {

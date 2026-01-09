@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { extractTextWithCitations } from '../utils/pdfHelpers';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 let pdfvision = 10;
@@ -27,6 +28,7 @@ export const PDFProvider = ({ children }) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [sidebarWidth, setSidebarWidth] = useState(250); // New state for resizing
     const [activeSidebarTab, setActiveSidebarTab] = useState('thumbnails'); // 'thumbnails', 'bookmarks'
+    const [activeToolId, setActiveToolId] = useState(null); // Global control for Elite Tools
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [theme, setTheme] = useState('light');
@@ -81,6 +83,9 @@ export const PDFProvider = ({ children }) => {
     const [flashcards, setFlashcards] = useState([]);
     const [references, setReferences] = useState([]);
     const [pdfText, setPdfText] = useState("");
+    const [pdfPagesData, setPdfPagesData] = useState([]); // For RAG Engine
+
+
 
     // Growth & Viral Mechanics
     const [referralPoints, setReferralPoints] = useState(0);
@@ -143,7 +148,6 @@ export const PDFProvider = ({ children }) => {
         }
     };
 
-    // Enhanced Annotation Setter
     const addAnnotation = (pageNum, annotation) => {
         const id = Math.random().toString(36).substr(2, 9);
         const newAnnot = { ...annotation, id, timestamp: Date.now(), author: 'User' };
@@ -161,7 +165,47 @@ export const PDFProvider = ({ children }) => {
             data: newAnnot,
             action: 'add'
         }]);
+        return id;
     };
+
+    const addImageAnnotation = (pageNum, imageSrc, x, y, width, height) => {
+        const id = `img_${Math.random().toString(36).substr(2, 9)}`;
+        const newAnnot = {
+            type: 'image',
+            id,
+            src: imageSrc,
+            x, y, width, height,
+            timestamp: Date.now(),
+            author: 'User'
+        };
+
+        setAnnotations(prev => ({
+            ...prev,
+            [pageNum]: [...(prev[pageNum] || []), newAnnot]
+        }));
+
+        setAnnotationHistory(prev => [...prev, {
+            id,
+            timestamp: Date.now(),
+            type: 'image',
+            page: pageNum,
+            data: newAnnot,
+            action: 'add'
+        }]);
+        return id;
+    };
+
+    const updateAnnotation = (pageNum, id, newData) => {
+        setAnnotations(prev => {
+            const pageAnns = prev[pageNum] || [];
+            return {
+                ...prev,
+                [pageNum]: pageAnns.map(ann => ann.id === id ? { ...ann, ...newData } : ann)
+            };
+        });
+    };
+
+
 
     const rollbackTo = (historyId) => {
         const index = annotationHistory.findIndex(h => h.id === historyId);
@@ -297,7 +341,15 @@ export const PDFProvider = ({ children }) => {
             // ALWAYS skip initial text extraction for performance
             // Text will be extracted lazily as user scrolls to pages
             setPdfText("");
+            setPdfPagesData([]); // Reset RAG data
             console.log(`📄 PDF loaded (${pdf.numPages} pages) - Text extraction deferred for performance`);
+
+            // Start background extraction for RAG engine (True AI)
+            extractTextWithCitations(pdf).then(data => {
+                setPdfPagesData(data);
+                console.log('✅ RAG Engine: Grounding data ready');
+            }).catch(console.error);
+
 
             if (track) addToNavHistory(tabId, 1);
 
@@ -414,6 +466,8 @@ export const PDFProvider = ({ children }) => {
         setSidebarWidth,
         activeSidebarTab,
         setActiveSidebarTab,
+        activeToolId,
+        setActiveToolId,
         isLoading,
         error,
         theme,
@@ -463,9 +517,11 @@ export const PDFProvider = ({ children }) => {
         togglePin,
         universalNotes,
         setUniversalNotes,
-        annotationHistory,
         addAnnotation,
+        addImageAnnotation,
+        updateAnnotation,
         rollbackTo,
+
         colorSettings,
         setColorSettings,
         navHistory,
@@ -495,6 +551,8 @@ export const PDFProvider = ({ children }) => {
         flashcards, setFlashcards,
         references, setReferences,
         pdfText, setPdfText,
+        pdfPagesData, setPdfPagesData,
+
         // Growth & Viral States
         referralPoints, setReferralPoints,
         referralCount, setReferralCount,

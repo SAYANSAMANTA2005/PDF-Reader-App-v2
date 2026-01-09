@@ -9,15 +9,17 @@
 export class PageRenderScheduler {
     constructor(options = {}) {
         this.options = {
-            maxConcurrentRenders: options.maxConcurrentRenders || 2,
+            maxConcurrentRenders: options.maxConcurrentRenders || 4, // Increased default
             prioritizeVisiblePages: options.prioritizeVisiblePages !== false,
             useIdleCallback: options.useIdleCallback !== false,
+            lookaheadCount: options.lookaheadCount || 5, // Number of pages to preload ahead
         };
 
         this.renderQueue = [];
         this.activeRenders = new Set();
         this.completedPages = new Set();
         this.failedPages = new Map();
+        this.preloadedPages = new Set(); // Track preloaded pages explicitly
 
         this.onRenderStart = options.onRenderStart || (() => { });
         this.onRenderComplete = options.onRenderComplete || (() => { });
@@ -28,9 +30,14 @@ export class PageRenderScheduler {
      * Add page to render queue with priority
      */
     addPageToQueue(pageNumber, renderFn, priority = 0) {
-        // Only block if currently rendering (not if already completed)
-        // This allows re-renders when components unmount and remount
-        if (this.activeRenders.has(pageNumber)) {
+        // Prevent duplicate queuing of the same page
+        if (this.activeRenders.has(pageNumber) || this.renderQueue.some(item => item.pageNumber === pageNumber)) {
+            // If already in queue, just update priority if higher
+            const existing = this.renderQueue.find(item => item.pageNumber === pageNumber);
+            if (existing && priority > existing.priority) {
+                existing.priority = priority;
+                this.renderQueue.sort((a, b) => b.priority - a.priority);
+            }
             return false;
         }
 
@@ -52,20 +59,37 @@ export class PageRenderScheduler {
     }
 
     /**
-     * Update visible pages to reprioritize queue
+     * Update visible pages to reprioritize queue and schedule lookahead
      */
-    updateVisiblePages(visiblePages) {
+    updateVisiblePages(visiblePages, renderFnLoader) {
         if (!this.options.prioritizeVisiblePages) return;
 
         // Reprioritize visible pages
         for (const item of this.renderQueue) {
             if (visiblePages.includes(item.pageNumber)) {
-                item.priority = 100 + visiblePages.indexOf(item.pageNumber);
+                item.priority = 1000 + visiblePages.indexOf(item.pageNumber); // High priority
+            }
+        }
+
+        // Add lookahead pages to queue with lower priority
+        if (visiblePages.length > 0 && renderFnLoader) {
+            const lastVisible = Math.max(...visiblePages);
+            for (let i = 1; i <= this.options.lookaheadCount; i++) {
+                const preloadPage = lastVisible + i;
+                // Only if not already rendered or in queue
+                if (!this.completedPages.has(preloadPage) && !this.preloadedPages.has(preloadPage)) {
+                    const renderFn = renderFnLoader(preloadPage);
+                    if (renderFn) {
+                        this.addPageToQueue(preloadPage, renderFn, 10); // Low priority for preload
+                        this.preloadedPages.add(preloadPage);
+                    }
+                }
             }
         }
 
         // Re-sort
         this.renderQueue.sort((a, b) => b.priority - a.priority);
+        this.processQueue();
     }
 
     /**
@@ -92,22 +116,18 @@ export class PageRenderScheduler {
         this.onRenderStart(pageNumber);
 
         try {
-            // Use idle callback if available
+            // Aggressive rendering: use requestIdleCallback but don't wait forever
             if (this.options.useIdleCallback && 'requestIdleCallback' in window) {
                 await new Promise((resolve) => {
-                    requestIdleCallback(async () => {
+                    requestIdleCallback(async (deadline) => {
+                        // If we have enough time in this frame, or if it's high priority, proceed
                         await renderFn(pageNumber);
                         resolve();
-                    });
+                    }, { timeout: 200 }); // Max wait 200ms for idle
                 });
             } else {
-                // Fallback to timeout to avoid blocking
-                await new Promise((resolve) => {
-                    setTimeout(async () => {
-                        await renderFn(pageNumber);
-                        resolve();
-                    }, 0);
-                });
+                // Fallback to microtask
+                await renderFn(pageNumber);
             }
 
             this.activeRenders.delete(pageNumber);
