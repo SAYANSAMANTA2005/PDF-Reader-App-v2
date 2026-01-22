@@ -44,7 +44,9 @@ const PDFViewer = () => {
         startReading,
         isMathMode,
         setActiveEquation,
-        isActiveRecallMode
+        isActiveRecallMode,
+        isTtsSelecting,
+        handleTtsPointClick
     } = usePDF();
 
     const containerRef = useRef(null);
@@ -55,10 +57,10 @@ const PDFViewer = () => {
 
     // Initialize high-performance utilities
     const virtualizer = useMemo(() => new PDFVirtualizer({
-        pageHeight: PAGE_HEIGHT_ESTIMATE * scale,
+        pageHeight: (window.dynamicPageHeight || PAGE_HEIGHT_ESTIMATE * scale),
         bufferPages: BUFFER_PAGES,
         containerHeight: window.innerHeight,
-    }), [scale, isTwoPageMode]); // Re-init virtualizer when mode changes
+    }), [scale, isTwoPageMode, window.dynamicPageHeight]); // Re-init virtualizer when mode or height changes
 
     const scheduler = useMemo(() => new PageRenderScheduler({
         maxConcurrentRenders: 2,
@@ -74,6 +76,12 @@ const PDFViewer = () => {
     const lastScrollTop = useRef(0);
     const isScrollChange = useRef(false);
 
+    // Use ref for currentPage to keep handleScroll stable and avoid deps loop
+    const currentPageRef = useRef(currentPage);
+    useEffect(() => {
+        currentPageRef.current = currentPage;
+    }, [currentPage]);
+
     // Handle Scroll
     const handleScroll = useCallback((force = false) => {
         if (!containerRef.current) return;
@@ -81,22 +89,18 @@ const PDFViewer = () => {
         const scrollY = containerRef.current.scrollTop;
         const containerHeight = containerRef.current.clientHeight;
 
-        // Prevent flickering from tiny jitter movements (less than 1px)
+        // Prevent flickering from tiny jitter movements
         if (!force && Math.abs(scrollY - lastScrollTop.current) < 1 && !isJumping.current) {
             return;
         }
         lastScrollTop.current = scrollY;
 
-        // Skip updating currentPage from scroll if we just performed a programmatic jump
-        // UNLESS forced (e.g. during an actual jump)
         if (isJumping.current && !force) {
             return;
         }
 
         // Update virtualization
         const visible = virtualizer.getVisiblePages(scrollY, containerHeight, isTwoPageMode);
-
-        // In Two-Page mode, indices are rows. In Single-Page, indices are pages.
         const maxIndex = isTwoPageMode ? Math.ceil(numPages / 2) : numPages;
         const validVisible = visible.filter(p => p >= 0 && p < maxIndex);
 
@@ -107,20 +111,19 @@ const PDFViewer = () => {
             return validVisible;
         });
 
-        // Update current page with stable offset (25% from top)
-        const scrollReference = scrollY + (containerHeight * 0.25);
+        // Update current page with stable offset (30% from top)
+        const scrollReference = scrollY + (containerHeight * 0.3);
         const middleRowIdx = virtualizer.getPageFromPosition(scrollReference);
         const middlePage = isTwoPageMode
             ? Math.min(numPages, (middleRowIdx * 2) + 1)
             : Math.min(numPages, Math.max(1, middleRowIdx + 1));
 
-        if (middlePage !== currentPage) {
-            // Only set isScrollChange if we are NOT forcing (i.e. regular scroll)
+        if (middlePage !== currentPageRef.current) {
             if (!force) isScrollChange.current = true;
             setCurrentPage(middlePage);
         }
 
-        // Ensure the current index is in the visible list
+        // Ensure the current index is in the visible list (safety guard)
         const middleIdx = isTwoPageMode ? middleRowIdx : middlePage - 1;
         setVisiblePages(prev => {
             if (!prev.includes(middleIdx) && middleIdx >= 0 && middleIdx < maxIndex) {
@@ -129,36 +132,47 @@ const PDFViewer = () => {
             return prev;
         });
 
-        // Adaptive quality
-        if (renderingQuality !== 'low') {
-            qualityManager.updateQuality(true);
-            setRenderingQuality('low');
-        }
+        // Toggle to low quality during scroll for performance
+        setRenderingQuality(prev => {
+            if (prev !== 'low') {
+                qualityManager.updateQuality(true);
+                return 'low';
+            }
+            return prev;
+        });
 
         if (window.renderTimeout) clearTimeout(window.renderTimeout);
         window.renderTimeout = setTimeout(() => {
-            // CRITICAL: Final forced check to ensure virtualization didn't miss 
-            // the final scroll position due to guards/jitter.
-            handleScroll(true);
+            // Final consistency check
+            if (containerRef.current) {
+                const finalScroll = containerRef.current.scrollTop;
+                const finalVisible = virtualizer.getVisiblePages(finalScroll, containerHeight, isTwoPageMode);
+                const finalMax = isTwoPageMode ? Math.ceil(numPages / 2) : numPages;
+                setVisiblePages(finalVisible.filter(p => p >= 0 && p < finalMax));
 
-            qualityManager.updateQuality(false);
-            setRenderingQuality('high');
-        }, 400);
+                qualityManager.updateQuality(false);
+                setRenderingQuality('high');
+            }
+        }, 300);
 
-    }, [virtualizer, numPages, currentPage, setCurrentPage, qualityManager, renderingQuality]);
+    }, [virtualizer, numPages, setCurrentPage, qualityManager, isTwoPageMode]);
 
     // Update virtualization on scale change
     useEffect(() => {
         virtualizer.options.pageHeight = PAGE_HEIGHT_ESTIMATE * scale;
-        handleScroll();
+        // Immediate update + small delayed fallback to ensure container size caught up
+        handleScroll(true);
+        const t = setTimeout(() => handleScroll(true), 100);
+        return () => clearTimeout(t);
     }, [scale, virtualizer, handleScroll]);
 
     // Initial setup and event listeners
     useEffect(() => {
         const container = containerRef.current;
         if (container) {
-            container.addEventListener('scroll', () => handleScroll(), { passive: true });
-            handleScroll(); // Initial calc
+            // Use the direct function reference for proper removal
+            container.addEventListener('scroll', handleScroll, { passive: true });
+            handleScroll(true);
             return () => container.removeEventListener('scroll', handleScroll);
         }
     }, [handleScroll]);
@@ -265,6 +279,8 @@ const PDFViewer = () => {
                                     isMathMode={isMathMode}
                                     setActiveEquation={setActiveEquation}
                                     isActiveRecallMode={isActiveRecallMode}
+                                    isTtsSelecting={isTtsSelecting}
+                                    handleTtsPointClick={handleTtsPointClick}
                                 />
                                 {rightPageNum <= numPages && (
                                     <PDFPage
@@ -279,6 +295,8 @@ const PDFViewer = () => {
                                         isMathMode={isMathMode}
                                         setActiveEquation={setActiveEquation}
                                         isActiveRecallMode={isActiveRecallMode}
+                                        isTtsSelecting={isTtsSelecting}
+                                        handleTtsPointClick={handleTtsPointClick}
                                     />
                                 )}
                             </div>
@@ -310,6 +328,8 @@ const PDFViewer = () => {
                                 isMathMode={isMathMode}
                                 setActiveEquation={setActiveEquation}
                                 isActiveRecallMode={isActiveRecallMode}
+                                isTtsSelecting={isTtsSelecting}
+                                handleTtsPointClick={handleTtsPointClick}
                             />
                         </div>
                     );
@@ -347,7 +367,9 @@ const PDFPage = React.memo(({
     onStartReading,
     isMathMode,
     setActiveEquation,
-    isActiveRecallMode
+    isActiveRecallMode,
+    isTtsSelecting,
+    handleTtsPointClick
 }) => {
     const canvasRef = useRef(null);
     const textLayerRef = useRef(null);
@@ -359,9 +381,38 @@ const PDFPage = React.memo(({
     });
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [isRendered, setIsRendered] = useState(false);
-    const isStableRender = useRef(false); // Changed to Ref to avoid re-render cycles
+    const isStableRender = useRef(false);
     const renderTaskRef = useRef(null);
     const lastRenderQuality = useRef(null);
+    const propsRef = useRef({});
+
+    // Keep props fresh for event listeners without re-rendering the whole text layer
+    useEffect(() => {
+        propsRef.current = {
+            isTtsSelecting,
+            handleTtsPointClick,
+            isReading,
+            onStartReading,
+            isMathMode,
+            setActiveEquation
+        };
+    }, [isTtsSelecting, handleTtsPointClick, isReading, onStartReading, isMathMode, setActiveEquation]);
+
+    // Update cursor style when modes change
+    useEffect(() => {
+        if (textLayerRef.current) {
+            const cursor = isTtsSelecting ? 'crosshair' : (isReading ? 'pointer' : (isMathMode ? 'crosshair' : 'text'));
+            textLayerRef.current.style.cursor = cursor;
+            textLayerRef.current.style.pointerEvents = (isTtsSelecting || isReading || isMathMode) ? 'auto' : 'none';
+
+            // Update children cursors
+            const spans = textLayerRef.current.querySelectorAll('span');
+            spans.forEach(s => {
+                s.style.cursor = cursor;
+                s.style.pointerEvents = 'auto'; // spans must always be clickable if container allows
+            });
+        }
+    }, [isTtsSelecting, isReading, isMathMode]);
 
     // Instant Scroll-OCR Logic
     const containerRef = useRef(null);
@@ -445,6 +496,11 @@ const PDFPage = React.memo(({
                 const displayViewport = page.getViewport({ scale, rotation });
                 setDimensions({ width: displayViewport.width, height: displayViewport.height });
 
+                // Update the global estimate if this is a representative page
+                if (pageNum === 1 || !window.dynamicPageHeight) {
+                    window.dynamicPageHeight = displayViewport.height;
+                }
+
                 // Update text layer if needed (it's fast and doesn't flicker the canvas)
                 if (textLayerRef.current) {
                     renderTextLayer(page, displayViewport);
@@ -524,8 +580,23 @@ const PDFPage = React.memo(({
                 span.style.transformOrigin = '0% 0%';
 
                 span.addEventListener('click', (e) => {
-                    if (isReading) onStartReading(pageNum, index);
-                    else if (isMathMode) setActiveEquation(item.str);
+                    e.stopPropagation();
+                    const {
+                        isTtsSelecting: activeTts,
+                        handleTtsPointClick: clickHandler,
+                        isReading: activeReading,
+                        onStartReading: readingHandler,
+                        isMathMode: activeMath,
+                        setActiveEquation: mathHandler
+                    } = propsRef.current;
+
+                    if (activeTts) {
+                        clickHandler(pageNum, index, item.str);
+                    } else if (activeReading) {
+                        readingHandler(pageNum, index);
+                    } else if (activeMath) {
+                        mathHandler(item.str);
+                    }
                 });
 
                 fragment.appendChild(span);
@@ -581,7 +652,17 @@ const PDFPage = React.memo(({
                 </div>
             )}
             <canvas ref={canvasRef} />
-            <div className="textLayer" ref={textLayerRef} style={{ position: 'absolute', top: 0, left: 0 }}>
+            <div
+                className="textLayer"
+                ref={textLayerRef}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    zIndex: (isTtsSelecting || isReading || isMathMode) ? 100 : 2,
+                    pointerEvents: (isTtsSelecting || isReading || isMathMode) ? 'auto' : 'none'
+                }}
+            >
                 {/* Fallback OCR Layer if native text is missing */}
                 {ocrData && (
                     <div className="ocr-layer" style={{

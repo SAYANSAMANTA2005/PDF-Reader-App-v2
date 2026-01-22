@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PDF Reader Pro</string>
+    <string name="title_activity_main">PDF Reader Pro</string>
+    <string name="package_name">com.pdfreader.pro</string>
+    <string name="custom_url_scheme">com.pdfreader.pro</string>
+</resources>

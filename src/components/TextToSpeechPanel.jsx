@@ -25,7 +25,10 @@ const TextToSpeechPanel = ({ onClose }) => {
     const {
         pdfDocument,
         currentPage,
-        numPages
+        numPages,
+        isTtsSelecting,
+        setIsTtsSelecting,
+        ttsSelectionPoints
     } = usePDF();
 
     const [isExpanded, setIsExpanded] = useState(true);
@@ -60,6 +63,30 @@ const TextToSpeechPanel = ({ onClose }) => {
 
     // Sync status with service
     useEffect(() => {
+        const handleRangeSelected = (e) => {
+            console.log("TTS Panel: Received range text, length:", e.detail?.text?.length);
+            if (e.detail?.text) {
+                setSelectedText(e.detail.text);
+                toast.success("Text range selected!");
+                setStatus('idle');
+            }
+        };
+
+        const handleRangeError = (e) => {
+            console.error("TTS Panel: Range selection error:", e.detail?.message);
+            toast.error(e.detail?.message || "Range selection failed");
+            setStatus('idle');
+        };
+
+        const handleRangeProcessing = () => {
+            console.log("TTS Panel: Range processing started...");
+            setStatus('processing');
+        };
+
+        window.addEventListener('tts-range-selected', handleRangeSelected);
+        window.addEventListener('tts-range-error', handleRangeError);
+        window.addEventListener('tts-range-processing', handleRangeProcessing);
+
         const interval = setInterval(() => {
             if (ttsService.isSpeaking()) {
                 if (ttsService.isPaused) {
@@ -67,12 +94,18 @@ const TextToSpeechPanel = ({ onClose }) => {
                 } else {
                     setStatus('playing');
                 }
-            } else {
+            } else if (status !== 'summarizing' && status !== 'processing') {
                 setStatus('idle');
             }
         }, 300);
-        return () => clearInterval(interval);
-    }, []);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('tts-range-selected', handleRangeSelected);
+            window.removeEventListener('tts-range-error', handleRangeError);
+            window.removeEventListener('tts-range-processing', handleRangeProcessing);
+        };
+    }, [status]);
 
     // Handle speech rate changes
     useEffect(() => {
@@ -262,8 +295,24 @@ const TextToSpeechPanel = ({ onClose }) => {
                             placeholder="Enter or select text to read..."
                         />
                         <div className="tts-section-btns">
+                            <button
+                                className={`tts-btn ${isTtsSelecting ? 'btn-accent animate-pulse' : (status === 'processing' ? 'btn-disabled' : 'btn-primary-alt')}`}
+                                onClick={() => {
+                                    if (isTtsSelecting) {
+                                        setIsTtsSelecting(false);
+                                    } else {
+                                        setIsTtsSelecting(true);
+                                        toast.info("Click two points on the PDF text to select a range");
+                                    }
+                                }}
+                                disabled={status === 'processing' || status === 'summarizing'}
+                                title="Click two points in the PDF to read the text between them"
+                            >
+                                {status === 'processing' ? <Loader2 size={16} className="animate-spin" /> : <Type size={16} />}
+                                {status === 'processing' ? 'Processing...' : (isTtsSelecting ? (ttsSelectionPoints.length === 0 ? 'Click Start Point...' : 'Click End Point...') : 'Select Range')}
+                            </button>
                             <button className="tts-btn btn-primary-alt" onClick={handleGetSelectedText}>
-                                <Type size={16} /> Get Selected
+                                <Zap size={16} /> Get Selection
                             </button>
                             <button className="tts-btn btn-outline" onClick={handleClearSelection}>
                                 Clear

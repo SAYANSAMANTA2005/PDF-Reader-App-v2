@@ -207,6 +207,33 @@
     cursor: wait;
 }
 
+.btn-accent {
+    background: #FFD700;
+    color: #000;
+    border: 2px solid #FFA500;
+}
+
+@keyframes animate-pulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4);
+    }
+
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 10px rgba(255, 215, 0, 0);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
+    }
+}
+
+.animate-pulse {
+    animation: animate-pulse 1.5s infinite;
+}
+
 
 .tts-select {
     width: 100%;

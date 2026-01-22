@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './styles/index.css';
+import './styles/mobile.css';
 import { PDFProvider } from './context/PDFContext.jsx';
 
 // Use PDFProvider for all features including the high-performance system

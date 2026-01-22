@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar';
 import PDFViewer from './components/PDFViewer';
 import { ToastProvider } from './components/ToastNotification';
 import { Upload, FileText, AlertCircle, XCircle, Zap } from 'lucide-react';
+import { isMobile, pickPDFFile } from './utils/mobileFilePicker';
 
 const App = () => {
     const {
@@ -13,9 +14,17 @@ const App = () => {
         setActiveSidebarTab
     } = usePDF();
     const [isDragging, setIsDragging] = useState(false);
+    const isOnMobile = isMobile();
 
     // Keyboard Shortcuts
     React.useEffect(() => {
+        // Check for 'file' query parameter on mount
+        const params = new URLSearchParams(window.location.search);
+        const fileUrl = params.get('file');
+        if (fileUrl) {
+            loadPDF(fileUrl);
+        }
+
         const handleKeyDown = (e) => {
             if (e.altKey) {
                 switch (e.key.toLowerCase()) {
@@ -41,16 +50,27 @@ const App = () => {
     }, [setActiveSidebarTab, setIsSidebarOpen]);
 
 
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file && file.type === 'application/pdf') {
-            loadPDF(file);
+    const handleFileChange = async (e) => {
+        if (isOnMobile) {
+            // Use mobile file picker
+            const file = await pickPDFFile();
+            if (file && file.type === 'application/pdf') {
+                loadPDF(file);
+            }
+        } else {
+            // Web file input
+            const file = e.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                loadPDF(file);
+            }
         }
     };
 
     const handleDrop = (e) => {
         e.preventDefault();
         setIsDragging(false);
+        // Disable drag-drop on mobile
+        if (isOnMobile) return;
         const file = e.dataTransfer.files[0];
         if (file && file.type === 'application/pdf') {
             loadPDF(file);
@@ -59,6 +79,8 @@ const App = () => {
 
     const handleDragOver = (e) => {
         e.preventDefault();
+        // Disable drag-drop on mobile
+        if (isOnMobile) return;
         setIsDragging(true);
     };
 

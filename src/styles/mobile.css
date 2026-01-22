@@ -1,0 +1,226 @@
+/* Mobile-specific responsive styles */
+
+/* Platform detection helper */
+.mobile-only {
+  display: none;
+}
+
+.desktop-only {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: block;
+  }
+  
+  .desktop-only {
+    display: none;
+  }
+}
+
+/* Mobile viewport adjustments */
+@media (max-width: 768px) {
+  /* Increase touch target sizes */
+  button, .btn, .toolbar-btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+  }
+
+  /* Mobile-friendly toolbar */
+  .toolbar {
+    flex-wrap: wrap;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  /* Bottom navigation for mobile */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+
+  /* Full-width sidebar on mobile */
+  .sidebar {
+    width: 100% !important;
+    max-width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 2000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Mobile PDF viewer adjustments */
+  .pdf-viewer {
+    padding: 8px;
+  }
+
+  .pdf-page-container {
+    margin: 8px 0;
+  }
+
+  /* Hide two-page mode on mobile */
+  .two-page-mode {
+    display: none !important;
+  }
+
+  /* Mobile annotation controls */
+  .annotation-toolbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
+    padding: 12px;
+    display: flex;
+    gap: 12px;
+    justify-content: space-around;
+    z-index: 1500;
+  }
+
+  /* Larger color picker swatches */
+  .color-swatch {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+  }
+
+  /* Mobile search bar */
+  .search-bar {
+    width: 100%;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Mobile modal adjustments */
+  .modal-content {
+    width: 95%;
+    max-width: 95%;
+    margin: 20px auto;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Touch-friendly tabs */
+  .tab-button {
+    min-height: 48px;
+    font-size: 14px;
+  }
+
+  /* Mobile thumbnails */
+  .thumbnail-container {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .thumbnail {
+    height: 140px;
+  }
+
+  /* Disable hover effects on mobile */
+  @media (hover: none) {
+    .hover-effect:hover {
+      transform: none;
+      box-shadow: none;
+    }
+  }
+
+  /* Mobile premium tools */
+  .premium-tools-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  /* Mobile AI chat */
+  .ai-chat-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60vh;
+    border-radius: 16px 16px 0 0;
+  }
+
+  /* Mobile text size adjustments */
+  body {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  h1 { font-size: 24px; }
+  h2 { font-size: 20px; }
+  h3 { font-size: 18px; }
+  
+  /* Mobile safe area handling (for notches) */
+  .app-container {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Prevent text selection on mobile (for better touch UX) */
+  .no-select-mobile {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Mobile loading skeleton */
+  .loading-skeleton {
+    min-height: 200px;
+  }
+}
+
+/* Tablet adjustments (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .sidebar {
+    width: 320px !important;
+  }
+
+  .toolbar {
+    gap: 12px;
+  }
+
+  .thumbnail-container {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+}
+
+/* Landscape mobile adjustments */
+@media (max-width: 896px) and (orientation: landscape) {
+  .sidebar {
+    width: 40% !important;
+  }
+
+  .modal-content {
+    max-height: 80vh;
+  }
+
+  .ai-chat-container {
+    height: 70vh;
+  }
+}
+
+/* High DPI displays (Retina) */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .pdf-page-canvas {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Dark mode mobile adjustments */
+@media (prefers-color-scheme: dark) and (max-width: 768px) {
+  .modal-content {
+    background: var(--bg-primary);
+  }
+}

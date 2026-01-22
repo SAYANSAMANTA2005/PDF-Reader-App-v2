@@ -1,23 +1,27 @@
 {
+    "manifest_version": 3,
     "name": "PDF Reader Pro",
-    "short_name": "PDF Reader",
+    "version": "1.0.0",
     "description": "A modern, fast, and user-friendly PDF Reader application.",
-    "start_url": "/",
-    "display": "standalone",
-    "background_color": "#0f172a",
-    "theme_color": "#ef4444",
-    "icons": [
-        {
-            "src": "/icon-192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any maskable"
-        },
-        {
-            "src": "/icon-512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any maskable"
+    "action": {
+        "default_title": "Open PDF Reader",
+        "default_icon": {
+            "192": "icon-192.png",
+            "512": "icon-512.png"
         }
-    ]
+    },
+    "icons": {
+        "192": "icon-192.png",
+        "512": "icon-512.png"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "permissions": [
+        "storage",
+        "contextMenus"
+    ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self'"
+    }
 }

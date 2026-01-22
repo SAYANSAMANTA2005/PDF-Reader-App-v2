@@ -2,8 +2,11 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { extractTextWithCitations } from '../utils/pdfHelpers';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-let pdfvision = 10;
-// pdf vision scope -->21 pages = currentPage ± 10
+import { Capacitor } from '@capacitor/core';
+// Mobile-aware PDF vision scope
+const isMobilePlatform = Capacitor.isNativePlatform();
+let pdfvision = isMobilePlatform ? 5 : 10;
+// pdf vision scope --> mobile: 11 pages (currentPage ± 5), desktop: 21 pages (currentPage ± 10)
 // Use local worker for offline support
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -113,6 +116,14 @@ export const PDFProvider = ({ children }) => {
     const [audioVolume, setAudioVolume] = useState(0.5);
     const [audioIsMuted, setAudioIsMuted] = useState(false);
     const [audioActiveInternetTrack, setAudioActiveInternetTrack] = useState(null);
+    const [isTtsSelecting, setIsTtsSelecting] = useState(false);
+    const [ttsSelectionPoints, setTtsSelectionPoints] = useState([]); // [{ pageNum, index, text }]
+
+    useEffect(() => {
+        if (!isTtsSelecting) {
+            setTtsSelectionPoints([]);
+        }
+    }, [isTtsSelecting]);
 
     const audioContextRef = useRef(null);
     const audioNodesRef = useRef({});
@@ -204,6 +215,73 @@ export const PDFProvider = ({ children }) => {
             };
         });
     };
+
+    const processTtsRange = useCallback(async (p1, p2) => {
+        if (!pdfDocument) {
+            console.error("TTS: No PDF document available");
+            return;
+        }
+        try {
+            console.log("TTS: Processing range...", p1, p2);
+            let start = p1;
+            let end = p2;
+            if (p1.pageNum > p2.pageNum || (p1.pageNum === p2.pageNum && p1.index > p2.index)) {
+                start = p2;
+                end = p1;
+            }
+
+            let fullText = "";
+            for (let i = start.pageNum; i <= end.pageNum; i++) {
+                console.log(`TTS: Fetching Page ${i}...`);
+                const page = await pdfDocument.getPage(i);
+                const textContent = await page.getTextContent();
+                const items = textContent.items;
+
+                const startIdx = i === start.pageNum ? start.index : 0;
+                const endIdx = i === end.pageNum ? end.index : items.length - 1;
+
+                console.log(`TTS: Page ${i} has ${items.length} items. Slicing from ${startIdx} to ${endIdx}`);
+                const rangeItems = items.slice(startIdx, endIdx + 1);
+                const pageText = rangeItems.map(item => item.str).join(' ');
+                fullText += pageText + " ";
+            }
+
+            const cleanText = fullText.replace(/\s+/g, ' ').trim();
+            console.log("TTS: Capture complete. Length:", cleanText.length, "Start:", cleanText.substring(0, 50));
+
+            if (!cleanText) {
+                console.warn("TTS: Captured text is empty!");
+                window.dispatchEvent(new CustomEvent('tts-range-error', { detail: { message: "No text found in this area. Try selecting a larger range." } }));
+                return;
+            }
+
+            window.dispatchEvent(new CustomEvent('tts-range-selected', { detail: { text: cleanText } }));
+        } catch (err) {
+            console.error("TTS: Error processing range:", err);
+            window.dispatchEvent(new CustomEvent('tts-range-error', { detail: { message: "Failed to extract text. Please try again." } }));
+        }
+    }, [pdfDocument]);
+
+    const handleTtsPointClick = useCallback(async (pageNum, index, text) => {
+        if (!isTtsSelecting) return;
+
+        setTtsSelectionPoints(prev => {
+            const newPoints = [...prev, { pageNum, index, text }];
+            console.log(`TTS Point selected: Page ${pageNum}, Index ${index}. Points count: ${newPoints.length}`);
+
+            if (newPoints.length === 2) {
+                console.log("TTS: Two points captured. Triggering process...");
+                // Note: We use setTimeout to escape the state update cycle
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('tts-range-processing'));
+                    processTtsRange(newPoints[0], newPoints[1]);
+                    setIsTtsSelecting(false);
+                }, 0);
+                return [];
+            }
+            return newPoints;
+        });
+    }, [isTtsSelecting, processTtsRange]);
 
 
 
@@ -564,6 +642,10 @@ export const PDFProvider = ({ children }) => {
         audioActiveMode, setAudioActiveMode,
         audioActiveSound, setAudioActiveSound,
         audioVolume, setAudioVolume,
+        isTtsSelecting,
+        setIsTtsSelecting,
+        ttsSelectionPoints,
+        handleTtsPointClick,
         audioIsMuted, setAudioIsMuted,
         audioActiveInternetTrack, setAudioActiveInternetTrack,
         audioContextRef, audioNodesRef, internetAudioRef
@@ -573,9 +655,101 @@ export const PDFProvider = ({ children }) => {
         if (!pdfFile || !annotations) return;
         try {
             const { PDFDocument, rgb } = await import('pdf-lib');
-            // Download logic here...
+
+            let existingPdfBytes;
+            if (typeof pdfFile === 'string') {
+                existingPdfBytes = await fetch(pdfFile).then(res => res.arrayBuffer());
+            } else if (pdfFile instanceof File) {
+                existingPdfBytes = await pdfFile.arrayBuffer();
+            } else if (pdfFile instanceof ArrayBuffer) {
+                existingPdfBytes = pdfFile;
+            } else {
+                console.error("No raw PDF bytes available for download");
+                return;
+            }
+
+            const pdfDoc = await PDFDocument.load(existingPdfBytes);
+            const pages = pdfDoc.getPages();
+
+            const hexToRgb = (hex) => {
+                if (!hex) return { r: 0, g: 0, b: 0 };
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16) / 255,
+                    g: parseInt(result[2], 16) / 255,
+                    b: parseInt(result[3], 16) / 255
+                } : { r: 0, g: 0, b: 0 };
+            };
+
+            for (let i = 0; i < pages.length; i++) {
+                const pageNum = i + 1;
+                const page = pages[i];
+                const { width, height } = page.getSize();
+                const pageAnns = annotations[pageNum] || [];
+
+                for (const ann of pageAnns) {
+                    const color = hexToRgb(ann.color || '#000000');
+                    const rColor = rgb(color.r, color.g, color.b);
+
+                    if (ann.type === 'draw' || ann.type === 'highlight') {
+                        if (ann.points && ann.points.length > 1) {
+                            for (let j = 0; j < ann.points.length - 1; j++) {
+                                const p1 = ann.points[j];
+                                const p2 = ann.points[j + 1];
+                                page.drawLine({
+                                    start: { x: p1.x * width, y: height - (p1.y * height) },
+                                    end: { x: p2.x * width, y: height - (p2.y * height) },
+                                    thickness: (ann.strokeWidth || 3),
+                                    color: rColor,
+                                    opacity: ann.opacity || 1
+                                });
+                            }
+                        }
+                    } else if (ann.type === 'image') {
+                        try {
+                            const isDataUrl = ann.src.startsWith('data:');
+                            let imageBytes;
+                            if (isDataUrl) {
+                                // Extract base64 from data URL
+                                const base64 = ann.src.split(',')[1];
+                                imageBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+                            } else {
+                                imageBytes = await fetch(ann.src).then(res => res.arrayBuffer());
+                            }
+
+                            let pdfImage;
+                            if (ann.src.toLowerCase().includes('png') || ann.src.startsWith('data:image/png')) {
+                                pdfImage = await pdfDoc.embedPng(imageBytes);
+                            } else {
+                                pdfImage = await pdfDoc.embedJpg(imageBytes);
+                            }
+
+                            page.drawImage(pdfImage, {
+                                x: ann.x * width,
+                                y: height - (ann.y * height) - (ann.height * height),
+                                width: ann.width * width,
+                                height: ann.height * height,
+                            });
+                        } catch (imageErr) {
+                            console.warn("Failed to embed image in PDF:", imageErr);
+                        }
+                    }
+                }
+            }
+
+            const pdfBytes = await pdfDoc.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `annotated_${fileName || 'document.pdf'}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
         } catch (err) {
             console.error("Download failed:", err);
+            alert("Failed to generate annotated PDF. Check console for details.");
         }
     }
 

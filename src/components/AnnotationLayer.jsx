@@ -12,6 +12,7 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
         annotationColor,
 
         brushThickness,
+        highlightThickness,
         searchResults,
         currentMatchIndex
     } = usePDF();
@@ -84,7 +85,7 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                 type: annotationMode === 'highlight' ? 'highlight' : 'draw',
                 color: annotationColor, // Use the current active color from palette
                 opacity: annotationMode === 'highlight' ? 0.4 : 1,
-                strokeWidth: annotationMode === 'highlight' ? 20 : brushThickness,
+                strokeWidth: annotationMode === 'highlight' ? highlightThickness : brushThickness,
                 points: currentPath
             };
 
@@ -211,7 +212,7 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                     <path
                         d={pointsToPath(currentPath)}
                         stroke={annotationColor}
-                        strokeWidth={annotationMode === 'highlight' ? 20 : brushThickness}
+                        strokeWidth={annotationMode === 'highlight' ? highlightThickness : brushThickness}
                         fill="none"
                         strokeLinecap="round"
                         strokeLinejoin="round"

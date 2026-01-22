@@ -8,9 +8,16 @@ const DrawingPanel = ({ onClose }) => {
         setAnnotationColor,
         brushThickness,
         setBrushThickness,
+        highlightThickness,
+        setHighlightThickness,
         annotationMode,
         colorSettings
     } = usePDF();
+
+    const isHighlight = annotationMode === 'highlight';
+    const currentThickness = isHighlight ? highlightThickness : brushThickness;
+    const setThickness = isHighlight ? setHighlightThickness : setBrushThickness;
+    const maxVal = isHighlight ? 80 : 20; // Allow thicker for highlights
 
     const colors = Object.keys(colorSettings);
 
@@ -44,7 +51,7 @@ const DrawingPanel = ({ onClose }) => {
                     <path
                         d="M 20 20 Q 80 0, 140 20 T 260 20"
                         stroke={annotationColor}
-                        strokeWidth={brushThickness}
+                        strokeWidth={currentThickness}
                         fill="none"
                         strokeLinecap="round"
                     />
@@ -60,9 +67,9 @@ const DrawingPanel = ({ onClose }) => {
                     <input
                         type="range"
                         min="1"
-                        max="20"
-                        value={brushThickness}
-                        onChange={(e) => setBrushThickness(parseInt(e.target.value))}
+                        max={maxVal}
+                        value={currentThickness}
+                        onChange={(e) => setThickness(parseInt(e.target.value))}
                         className="thickness-slider"
                     />
                     <div className="slider-labels">
