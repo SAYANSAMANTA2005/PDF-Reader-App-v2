@@ -70,37 +70,49 @@ const PremiumToolsHub = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 overflow-visible sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8" style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))'
-                }}>
-                    {tools.map(tool => (
-                        <motion.button
-                            key={tool.id}
-                            onClick={() => setActiveTool(tool.id)}
-                            whileHover={{ scale: 1.02, y: -2 }}
-                            whileTap={{ scale: 0.98 }}
-                            className={`group flex flex-col items-center justify-between p-3 rounded-2xl transition-all relative min-h-[90px] border-2 ${activeTool === tool.id
-                                ? 'bg-accent text-white border-accent shadow-lg shadow-accent/25'
-                                : 'bg-bg-secondary/60 text-secondary hover:bg-bg-secondary hover:text-primary border-divider hover:border-accent/40 hover:shadow-md'
-                                }`}
+                <AnimatePresence mode="wait">
+                    {!activeTool && (
+                        <motion.div
+                            key="tool-grid"
+                            initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+                            animate={{ height: 'auto', opacity: 1, marginBottom: 16 }}
+                            exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+                            className="overflow-visible"
                         >
-                            <div className={`p-2 rounded-xl mb-1 ${activeTool === tool.id ? 'bg-white/20' : 'bg-accent/5 group-hover:bg-accent/10'} transition-colors`}>
-                                {React.cloneElement(tool.icon, { size: 20 })}
+                            <div className="grid grid-cols-3 gap-2 overflow-visible sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8" style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))'
+                            }}>
+                                {tools.map(tool => (
+                                    <motion.button
+                                        key={tool.id}
+                                        onClick={() => setActiveTool(tool.id)}
+                                        whileHover={{ scale: 1.02, y: -2 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        className={`group flex flex-col items-center justify-between p-3 rounded-2xl transition-all relative min-h-[90px] border-2 ${activeTool === tool.id
+                                            ? 'bg-accent text-white border-accent shadow-lg shadow-accent/25'
+                                            : 'bg-bg-secondary/60 text-secondary hover:bg-bg-secondary hover:text-primary border-divider hover:border-accent/40 hover:shadow-md'
+                                            }`}
+                                    >
+                                        <div className={`p-2 rounded-xl mb-1 ${activeTool === tool.id ? 'bg-white/20' : 'bg-accent/5 group-hover:bg-accent/10'} transition-colors`}>
+                                            {React.cloneElement(tool.icon, { size: 20 })}
+                                        </div>
+
+                                        <span className={`text-[10px] font-bold uppercase tracking-tight w-full text-center leading-tight break-words px-1 ${activeTool === tool.id ? 'text-white' : 'text-primary/80 group-hover:text-primary'}`}>
+                                            {tool.title}
+                                        </span>
+
+                                        {tool.isNew && (
+                                            <div className="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white text-[6px] font-black py-0.5 px-1.5 rounded-full animate-pulse shadow-sm z-20 border border-bg-primary">
+                                                NEW
+                                            </div>
+                                        )}
+                                    </motion.button>
+                                ))}
                             </div>
-
-                            <span className={`text-[10px] font-bold uppercase tracking-tight w-full text-center leading-tight break-words px-1 ${activeTool === tool.id ? 'text-white' : 'text-primary/80 group-hover:text-primary'}`}>
-                                {tool.title}
-                            </span>
-
-                            {tool.isNew && (
-                                <div className="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white text-[6px] font-black py-0.5 px-1.5 rounded-full animate-pulse shadow-sm z-20 border border-bg-primary">
-                                    NEW
-                                </div>
-                            )}
-                        </motion.button>
-                    ))}
-                </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
 
             </header>
@@ -1438,7 +1450,7 @@ const ExportToolEnhanced = () => {
 
 /* ==================== PRODUCTION-GRADE PDF EDITOR ==================== */
 const EditToolEnhanced = () => {
-    const { pdfDocument, pdfFile, fileName, numPages } = usePDF();
+    const { pdfDocument, pdfFile, fileName, numPages, loadPDF, currentPage } = usePDF();
     const toast = useToast();
     const [isProcessing, setIsProcessing] = useState(false);
     const [pageRange, setPageRange] = useState({ start: 1, end: 1, isValid: false });
@@ -1465,7 +1477,7 @@ const EditToolEnhanced = () => {
     };
 
     const executeOperation = async () => {
-        if (!pdfDocument || !pdfFile || (!pageRange.isValid && operation !== 'merge' && operation !== 'split' && operation !== 'redact')) {
+        if (!pdfDocument || (!pageRange.isValid && operation !== 'merge' && operation !== 'split' && operation !== 'redact')) {
             toast.error('Please select valid settings');
             return;
         }
@@ -1477,24 +1489,28 @@ const EditToolEnhanced = () => {
         );
 
         try {
+            // Get the actual bytes from the loaded PDF document
+            // This is safer than using pdfFile which might be a URL
+            const sourceBytes = await pdfDocument.getData();
+
             let resultBytes;
             let resultFilename;
             let splitResults = null;
 
             if (operation === 'rotate') {
-                resultBytes = await pdfEditService.rotatePDF(pdfFile, pagesToProcess, rotationAngle);
+                resultBytes = await pdfEditService.rotatePDF(sourceBytes, pagesToProcess, rotationAngle);
                 resultFilename = `${fileName.replace('.pdf', '')}_rotated_${rotationAngle}.pdf`;
                 toast.success(`Rotated ${pagesToProcess.length} pages by ${rotationAngle}°`);
             } else if (operation === 'extract') {
-                resultBytes = await pdfEditService.extractPages(pdfFile, pagesToProcess);
+                resultBytes = await pdfEditService.extractPages(sourceBytes, pagesToProcess);
                 resultFilename = `${fileName.replace('.pdf', '')}_pages_${pageRange.start}-${pageRange.end}.pdf`;
                 toast.success(`Extracted ${pagesToProcess.length} pages`);
             } else if (operation === 'delete') {
-                resultBytes = await pdfEditService.deletePages(pdfFile, pagesToProcess);
+                resultBytes = await pdfEditService.deletePages(sourceBytes, pagesToProcess);
                 resultFilename = `${fileName.replace('.pdf', '')}_deleted_${pageRange.start}-${pageRange.end}.pdf`;
                 toast.success(`Deleted ${pagesToProcess.length} pages`);
             } else if (operation === 'watermark') {
-                resultBytes = await pdfEditService.addWatermark(pdfFile, watermarkText, {
+                resultBytes = await pdfEditService.addWatermark(sourceBytes, watermarkText, {
                     pageNumbers: pagesToProcess,
                     opacity: 0.3,
                     rotation: 45
@@ -1502,22 +1518,22 @@ const EditToolEnhanced = () => {
                 resultFilename = `${fileName.replace('.pdf', '')}_watermarked.pdf`;
                 toast.success('Watermark applied');
             } else if (operation === 'insert') {
-                resultBytes = await pdfEditService.insertBlankPages(pdfFile, [insertPosition]);
+                resultBytes = await pdfEditService.insertBlankPages(sourceBytes, [insertPosition]);
                 resultFilename = `${fileName.replace('.pdf', '')}_with_blank_page.pdf`;
                 toast.success(`Inserted blank page at ${insertPosition}`);
             } else if (operation === 'merge') {
                 if (mergeFiles.length === 0) throw new Error("Please select files to merge");
-                const filesToMerge = [pdfFile, ...mergeFiles];
+                const filesToMerge = [sourceBytes, ...mergeFiles];
                 resultBytes = await pdfEditService.mergePDFs(filesToMerge);
                 resultFilename = `merged_document.pdf`;
                 toast.success(`Merged ${filesToMerge.length} documents`);
             } else if (operation === 'split') {
                 if (splitMode === 'interval') {
-                    splitResults = await pdfEditService.splitPDFByInterval(pdfFile, splitInterval);
+                    splitResults = await pdfEditService.splitPDFByInterval(sourceBytes, splitInterval);
                 } else {
                     const points = splitPages.split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
                     if (points.length === 0) throw new Error("Please enter valid page numbers for splitting");
-                    splitResults = await pdfEditService.splitPDFByRanges(pdfFile, points);
+                    splitResults = await pdfEditService.splitPDFByRanges(sourceBytes, points);
                 }
 
                 toast.success(`Split PDF into ${splitResults.length} parts`);
@@ -1548,17 +1564,23 @@ const EditToolEnhanced = () => {
                     }));
                 }
 
-                resultBytes = await pdfEditService.redactPDF(pdfFile, areas);
+                resultBytes = await pdfEditService.redactPDF(sourceBytes, areas);
                 resultFilename = `${fileName.replace('.pdf', '')}_redacted.pdf`;
                 toast.success(`Document redacted (${areas.length} pages)`);
             } else if (operation === 'protect') {
-                resultBytes = await pdfEditService.encryptPDF(pdfFile, watermarkText);
+                resultBytes = await pdfEditService.encryptPDF(sourceBytes, watermarkText);
                 resultFilename = `${fileName.replace('.pdf', '')}_protected.pdf`;
                 toast.success('Password protection applied');
             }
 
             if (resultBytes && !splitResults) {
-                pdfEditService.downloadPDF(resultBytes, resultFilename);
+                // Hot-reload the edited PDF into the viewer instead of downloading
+                await loadPDF(resultBytes, {
+                    initialPage: operation === 'delete' ? Math.min(currentPage, numPages - pagesToProcess.length) : currentPage,
+                    customFileName: fileName,
+                    track: false // Don't add to navigation history for small edits
+                });
+                toast.success("Current PDF updated successfully!");
             }
         } catch (err) {
             console.error(err);
@@ -1818,7 +1840,7 @@ const EditToolEnhanced = () => {
                     <div>
                         <p className="text-[10px] font-bold text-green-700">Real PDF Editing</p>
                         <p className="text-[9px] text-secondary mt-1">
-                            Powered by pdf-lib. All operations generate actual modified PDFs with instant download.
+                            Powered by pdf-lib. All operations update the current document view instantly.
                         </p>
                     </div>
                 </div>
@@ -1829,7 +1851,7 @@ const EditToolEnhanced = () => {
 
 /* ==================== PRODUCTION-GRADE e-SIGNATURE ENGINE ==================== */
 const SignatureToolEnhanced = () => {
-    const { pdfFile, fileName, numPages } = usePDF();
+    const { pdfFile, fileName, numPages, loadPDF, currentPage, pdfDocument } = usePDF(); // Destructured pdfDocument
     const toast = useToast();
     const canvasRef = useRef(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -1880,16 +1902,27 @@ const SignatureToolEnhanced = () => {
     };
 
     const applySignature = async () => {
-        if (!signature || !pdfFile) return;
+        if (!signature || !pdfDocument) return;
         setIsProcessing(true);
         try {
-            const bytes = await pdfEditService.signPDF(pdfFile, signature, {
+            // Get the actual bytes from the loaded PDF document
+            const sourceBytes = await pdfDocument.getData();
+
+            const bytes = await pdfEditService.signPDF(sourceBytes, signature, {
                 page: signPage,
                 x: 100, y: 100, width: 200, height: 100
             });
-            pdfEditService.downloadPDF(bytes, `${fileName.replace('.pdf', '')}_signed.pdf`);
-            toast.success('Document signed successfully!');
+
+            // Hot-reload the signed PDF into the viewer
+            await loadPDF(bytes, {
+                initialPage: currentPage,
+                customFileName: fileName,
+                track: false
+            });
+
+            toast.success('Document signed and view updated!');
         } catch (err) {
+            console.error(err);
             toast.error('Failed to sign document');
         } finally {
             setIsProcessing(false);
@@ -1945,7 +1978,7 @@ const SignatureToolEnhanced = () => {
                 disabled={!signature || isProcessing}
                 className={`premium-btn w-full !bg-indigo-600 shadow-indigo-600/20 ${!signature || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : 'Apply & Download Signed PDF'}
+                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : 'Apply Signature to Document'}
             </button>
         </div>
     );

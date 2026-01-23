@@ -379,11 +379,12 @@ export const PDFProvider = ({ children }) => {
         setNumPages(0);
     }, [pdfDocument]);
 
-    const loadPDF = async (file, id = null, track = true) => {
+    const loadPDF = async (file, options = {}) => {
+        const { tabId: customTabId, track = true, initialPage = 1, customFileName = null } = options;
         setIsLoading(true);
         setError(null);
 
-        const tabId = id || Math.random().toString(36).substr(2, 9);
+        const tabId = customTabId || Math.random().toString(36).substr(2, 9);
         let currentFileName = "";
 
         try {
@@ -404,6 +405,12 @@ export const PDFProvider = ({ children }) => {
                     enableWebGL: true
                 });
                 currentFileName = file.name;
+            } else if (file instanceof Uint8Array || file instanceof ArrayBuffer) {
+                loadingTask = pdfjsLib.getDocument({
+                    data: file,
+                    enableWebGL: true
+                });
+                currentFileName = customFileName || fileName || "edited_document.pdf";
             } else {
                 throw new Error("Invalid file format");
             }
@@ -414,7 +421,7 @@ export const PDFProvider = ({ children }) => {
             setPdfFile(file);
             setFileName(currentFileName);
             setNumPages(pdf.numPages);
-            setCurrentPage(1);
+            setCurrentPage(initialPage);
 
             // ALWAYS skip initial text extraction for performance
             // Text will be extracted lazily as user scrolls to pages
@@ -429,7 +436,7 @@ export const PDFProvider = ({ children }) => {
             }).catch(console.error);
 
 
-            if (track) addToNavHistory(tabId, 1);
+            if (track) addToNavHistory(tabId, initialPage);
 
             setTabs(prev => {
                 const exists = prev.find(t => t.id === tabId || t.fileName === currentFileName);

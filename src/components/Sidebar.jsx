@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 
 const Sidebar = () => {
-    const { activeSidebarTab, setActiveSidebarTab, sidebarWidth, setSidebarWidth, isPremium } = usePDF();
+    const { activeSidebarTab, setActiveSidebarTab, sidebarWidth, setSidebarWidth, isPremium, setActiveToolId } = usePDF();
 
     const handleMouseDown = (e) => {
         e.preventDefault();
@@ -88,7 +88,10 @@ const Sidebar = () => {
                     <button
                         key={tab.id}
                         className={`sidebar-tab ${activeSidebarTab === tab.id ? 'active' : ''} ${tab.id === 'store' ? 'premium-tab-highlight' : ''}`}
-                        onClick={() => setActiveSidebarTab(tab.id)}
+                        onClick={() => {
+                            if (tab.id === 'store') setActiveToolId(null);
+                            setActiveSidebarTab(tab.id);
+                        }}
                         style={{
                             display: 'flex',
                             flexDirection: 'column',

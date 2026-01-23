@@ -7,15 +7,31 @@ import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib';
 import { encryptPDF as libraryEncrypt } from '@pdfsmaller/pdf-encrypt-lite';
 
 /**
+ * Internal helper to ensure we have an ArrayBuffer from any source
+ */
+const getBuffer = async (pdfFile) => {
+    // Check for raw bytes first (most common now)
+    if (pdfFile instanceof Uint8Array || pdfFile instanceof ArrayBuffer) return pdfFile;
+
+    // Then check for File objects
+    if (pdfFile instanceof File) return await pdfFile.arrayBuffer();
+
+    // Finally fall back to strings (URLs)
+    if (typeof pdfFile === 'string' && (pdfFile.startsWith('http') || pdfFile.startsWith('/') || pdfFile.startsWith('blob:'))) {
+        const response = await fetch(pdfFile);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.arrayBuffer();
+    }
+
+    return pdfFile;
+};
+
+/**
  * Rotate pages in a PDF
- * @param {File|ArrayBuffer} pdfFile - Source PDF
- * @param {number[]} pageNumbers - Pages to rotate (1-indexed)
- * @param {number} angle - Rotation angle (90, 180, 270)
- * @returns {Promise<Uint8Array>} - Modified PDF bytes
  */
 export const rotatePDF = async (pdfFile, pageNumbers, angle) => {
     try {
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfBytes = await getBuffer(pdfFile);
         const pdfDoc = await PDFDocument.load(pdfBytes);
 
         const pages = pdfDoc.getPages();
@@ -27,8 +43,7 @@ export const rotatePDF = async (pdfFile, pageNumbers, angle) => {
             page.setRotation(degrees((currentRotation + angle) % 360));
         }
 
-        const modifiedBytes = await pdfDoc.save();
-        return modifiedBytes;
+        return await pdfDoc.save();
     } catch (error) {
         console.error('Error rotating PDF:', error);
         throw new Error(`Failed to rotate PDF: ${error.message}`);
@@ -37,13 +52,10 @@ export const rotatePDF = async (pdfFile, pageNumbers, angle) => {
 
 /**
  * Extract specific pages from a PDF
- * @param {File|ArrayBuffer} pdfFile - Source PDF
- * @param {number[]} pageNumbers - Pages to extract (1-indexed)
- * @returns {Promise<Uint8Array>} - New PDF with extracted pages
  */
 export const extractPages = async (pdfFile, pageNumbers) => {
     try {
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfBytes = await getBuffer(pdfFile);
         const sourcePdf = await PDFDocument.load(pdfBytes);
         const newPdf = await PDFDocument.create();
 
@@ -55,8 +67,7 @@ export const extractPages = async (pdfFile, pageNumbers) => {
             newPdf.addPage(copiedPage);
         }
 
-        const extractedBytes = await newPdf.save();
-        return extractedBytes;
+        return await newPdf.save();
     } catch (error) {
         console.error('Error extracting pages:', error);
         throw new Error(`Failed to extract pages: ${error.message}`);
@@ -65,13 +76,10 @@ export const extractPages = async (pdfFile, pageNumbers) => {
 
 /**
  * Delete specific pages from a PDF
- * @param {File|ArrayBuffer} pdfFile - Source PDF
- * @param {number[]} pageNumbers - Pages to delete (1-indexed)
- * @returns {Promise<Uint8Array>} - Modified PDF
  */
 export const deletePages = async (pdfFile, pageNumbers) => {
     try {
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfBytes = await getBuffer(pdfFile);
         const sourcePdf = await PDFDocument.load(pdfBytes);
         const newPdf = await PDFDocument.create();
 
@@ -89,8 +97,7 @@ export const deletePages = async (pdfFile, pageNumbers) => {
             newPdf.addPage(copiedPage);
         }
 
-        const modifiedBytes = await newPdf.save();
-        return modifiedBytes;
+        return await newPdf.save();
     } catch (error) {
         console.error('Error deleting pages:', error);
         throw new Error(`Failed to delete pages: ${error.message}`);
@@ -99,15 +106,13 @@ export const deletePages = async (pdfFile, pageNumbers) => {
 
 /**
  * Merge multiple PDFs into one
- * @param {File[]|ArrayBuffer[]} pdfFiles - Array of PDFs to merge
- * @returns {Promise<Uint8Array>} - Merged PDF
  */
 export const mergePDFs = async (pdfFiles) => {
     try {
         const mergedPdf = await PDFDocument.create();
 
         for (const file of pdfFiles) {
-            const pdfBytes = file instanceof File ? await file.arrayBuffer() : file;
+            const pdfBytes = await getBuffer(file);
             const sourcePdf = await PDFDocument.load(pdfBytes);
             const pageCount = sourcePdf.getPageCount();
 
@@ -115,8 +120,7 @@ export const mergePDFs = async (pdfFiles) => {
             copiedPages.forEach(page => mergedPdf.addPage(page));
         }
 
-        const mergedBytes = await mergedPdf.save();
-        return mergedBytes;
+        return await mergedPdf.save();
     } catch (error) {
         console.error('Error merging PDFs:', error);
         throw new Error(`Failed to merge PDFs: ${error.message}`);
@@ -125,22 +129,18 @@ export const mergePDFs = async (pdfFiles) => {
 
 /**
  * Add text watermark to PDF pages
- * @param {File|ArrayBuffer} pdfFile - Source PDF
- * @param {string} text - Watermark text
- * @param {Object} options - Watermark options
- * @returns {Promise<Uint8Array>} - Watermarked PDF
  */
 export const addWatermark = async (pdfFile, text, options = {}) => {
     try {
         const {
-            pageNumbers = null, // null = all pages
+            pageNumbers = null,
             opacity = 0.3,
             fontSize = 60,
             color = { r: 0.5, g: 0.5, b: 0.5 },
             rotation = 45
         } = options;
 
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfBytes = await getBuffer(pdfFile);
         const pdfDoc = await PDFDocument.load(pdfBytes);
         const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
@@ -165,8 +165,7 @@ export const addWatermark = async (pdfFile, text, options = {}) => {
             });
         }
 
-        const watermarkedBytes = await pdfDoc.save();
-        return watermarkedBytes;
+        return await pdfDoc.save();
     } catch (error) {
         console.error('Error adding watermark:', error);
         throw new Error(`Failed to add watermark: ${error.message}`);
@@ -175,14 +174,10 @@ export const addWatermark = async (pdfFile, text, options = {}) => {
 
 /**
  * Insert blank pages at specific locations
- * @param {File|ArrayBuffer} pdfFile - Source PDF
- * @param {number[]} positions - Positions to insert blank pages (1-indexed)
- * @param {Object} pageSize - { width, height } in points (default: letter size)
- * @returns {Promise<Uint8Array>} - Modified PDF
  */
 export const insertBlankPages = async (pdfFile, positions, pageSize = { width: 612, height: 792 }) => {
     try {
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfBytes = await getBuffer(pdfFile);
         const sourcePdf = await PDFDocument.load(pdfBytes);
         const newPdf = await PDFDocument.create();
 
@@ -192,10 +187,8 @@ export const insertBlankPages = async (pdfFile, positions, pageSize = { width: 6
 
         for (let targetPos = 1; targetPos <= sourcePages.length + sortedPositions.length; targetPos++) {
             if (sortedPositions.includes(targetPos)) {
-                // Insert blank page
                 newPdf.addPage([pageSize.width, pageSize.height]);
             } else {
-                // Copy existing page
                 if (sourceIndex < sourcePages.length) {
                     const [copiedPage] = await newPdf.copyPages(sourcePdf, [sourceIndex]);
                     newPdf.addPage(copiedPage);
@@ -204,8 +197,7 @@ export const insertBlankPages = async (pdfFile, positions, pageSize = { width: 6
             }
         }
 
-        const modifiedBytes = await newPdf.save();
-        return modifiedBytes;
+        return await newPdf.save();
     } catch (error) {
         console.error('Error inserting blank pages:', error);
         throw new Error(`Failed to insert blank pages: ${error.message}`);
@@ -213,25 +205,15 @@ export const insertBlankPages = async (pdfFile, positions, pageSize = { width: 6
 };
 
 /**
- * Download PDF bytes as file
- * @param {Uint8Array} pdfBytes - PDF data
- * @param {string} filename - Desired filename
- */
-/**
  * Encrypt a PDF with a password
- * @param {File|ArrayBuffer} pdfFile 
- * @param {string} password 
- * @returns {Promise<Uint8Array>}
  */
 export const encryptPDF = async (pdfFile, password) => {
     try {
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
-        // True encryption using industry-standard RC4/AES (via pdf-encrypt-lite)
-        // This modifies the PDF trailer and appends the encryption dictionary
-        const encryptedBytes = await libraryEncrypt(
+        const pdfBytes = await getBuffer(pdfFile);
+        return await libraryEncrypt(
             new Uint8Array(pdfBytes),
             password,
-            password, // Use same owner password for simplicity
+            password,
             {
                 printing: 'allow',
                 modifying: 'allow',
@@ -239,7 +221,6 @@ export const encryptPDF = async (pdfFile, password) => {
                 annotating: 'allow'
             }
         );
-        return encryptedBytes;
     } catch (error) {
         console.error('Error encrypting PDF:', error);
         throw new Error(`Failed to encrypt PDF: ${error.message}`);
@@ -248,13 +229,10 @@ export const encryptPDF = async (pdfFile, password) => {
 
 /**
  * Apply visual redaction to specific areas
- * @param {File|ArrayBuffer} pdfFile 
- * @param {Array<{page: number, x: number, y: number, width: number, height: number, color: {r,g,b}}>} areas 
- * @returns {Promise<Uint8Array>}
  */
 export const redactPDF = async (pdfFile, areas) => {
     try {
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfBytes = await getBuffer(pdfFile);
         const pdfDoc = await PDFDocument.load(pdfBytes);
         const pages = pdfDoc.getPages();
 
@@ -273,8 +251,7 @@ export const redactPDF = async (pdfFile, areas) => {
             });
         }
 
-        const modifiedBytes = await pdfDoc.save();
-        return modifiedBytes;
+        return await pdfDoc.save();
     } catch (error) {
         console.error('Error redacting PDF:', error);
         throw error;
@@ -283,17 +260,12 @@ export const redactPDF = async (pdfFile, areas) => {
 
 /**
  * Embed a signature image into a PDF
- * @param {File|ArrayBuffer} pdfFile 
- * @param {string} signatureDataUrl - Data URL of the signature image (PNG)
- * @param {Object} position - { page, x, y, width, height }
- * @returns {Promise<Uint8Array>}
  */
 export const signPDF = async (pdfFile, signatureDataUrl, position) => {
     try {
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfBytes = await getBuffer(pdfFile);
         const pdfDoc = await PDFDocument.load(pdfBytes);
 
-        // Embed the signature image
         const signatureImageBytes = await fetch(signatureDataUrl).then((res) => res.arrayBuffer());
         const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
 
@@ -308,8 +280,7 @@ export const signPDF = async (pdfFile, signatureDataUrl, position) => {
             });
         }
 
-        const modifiedBytes = await pdfDoc.save();
-        return modifiedBytes;
+        return await pdfDoc.save();
     } catch (error) {
         console.error('Error signing PDF:', error);
         throw error;
@@ -318,13 +289,10 @@ export const signPDF = async (pdfFile, signatureDataUrl, position) => {
 
 /**
  * Split PDF into multiple chunks of N pages each
- * @param {File|ArrayBuffer} pdfFile 
- * @param {number} interval 
- * @returns {Promise<Array<{bytes: Uint8Array, name: string}>>}
  */
 export const splitPDFByInterval = async (pdfFile, interval) => {
     try {
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfBytes = await getBuffer(pdfFile);
         const sourcePdf = await PDFDocument.load(pdfBytes);
         const pageCount = sourcePdf.getPageCount();
         const results = [];
@@ -352,22 +320,17 @@ export const splitPDFByInterval = async (pdfFile, interval) => {
 
 /**
  * Split PDF at specific page numbers
- * @param {File|ArrayBuffer} pdfFile 
- * @param {number[]} splitPoints - 1-indexed page numbers where split occurs (points are the LAST page of a chunk)
- * @returns {Promise<Array<{bytes: Uint8Array, name: string}>>}
  */
 export const splitPDFByRanges = async (pdfFile, splitPoints) => {
     try {
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfBytes = await getBuffer(pdfFile);
         const sourcePdf = await PDFDocument.load(pdfBytes);
         const totalPages = sourcePdf.getPageCount();
 
-        // Sort and filter points
         const points = [...new Set(splitPoints)]
             .sort((a, b) => a - b)
             .filter(p => p > 0 && p < totalPages);
 
-        // Create ranges: 1 to point1, point1+1 to point2, ..., lastPoint+1 to total
         const ranges = [];
         let lastPoint = 0;
         for (const p of points) {
@@ -398,33 +361,15 @@ export const splitPDFByRanges = async (pdfFile, splitPoints) => {
     }
 };
 
-export const downloadPDF = (pdfBytes, filename) => {
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-};
-
 /**
  * Get PDF metadata
- * @param {File|ArrayBuffer} pdfFile - Source PDF
- * @returns {Promise<Object>} - PDF metadata
  */
 export const getPDFMetadata = async (pdfFile) => {
     try {
-        const pdfBytes = pdfFile instanceof File ? await pdfFile.arrayBuffer() : pdfFile;
+        const pdfBytes = await getBuffer(pdfFile);
         const pdfDoc = await PDFDocument.load(pdfBytes);
-
-        const pages = pdfDoc.getPages();
-        const pageCount = pages.length;
-
         return {
-            pageCount,
+            pageCount: pdfDoc.getPageCount(),
             title: pdfDoc.getTitle() || 'Untitled',
             author: pdfDoc.getAuthor() || 'Unknown',
             subject: pdfDoc.getSubject() || '',
@@ -438,6 +383,18 @@ export const getPDFMetadata = async (pdfFile) => {
         console.error('Error getting PDF metadata:', error);
         throw new Error(`Failed to get PDF metadata: ${error.message}`);
     }
+};
+
+export const downloadPDF = (pdfBytes, filename) => {
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 };
 
 export default {

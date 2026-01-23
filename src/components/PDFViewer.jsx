@@ -118,7 +118,7 @@ const PDFViewer = () => {
             ? Math.min(numPages, (middleRowIdx * 2) + 1)
             : Math.min(numPages, Math.max(1, middleRowIdx + 1));
 
-        if (middlePage !== currentPageRef.current) {
+        if (!isJumping.current && middlePage !== currentPageRef.current) {
             if (!force) isScrollChange.current = true;
             setCurrentPage(middlePage);
         }
@@ -157,67 +157,72 @@ const PDFViewer = () => {
 
     }, [virtualizer, numPages, setCurrentPage, qualityManager, isTwoPageMode]);
 
-    // Update virtualization on scale change
-    useEffect(() => {
-        virtualizer.options.pageHeight = PAGE_HEIGHT_ESTIMATE * scale;
-        // Immediate update + small delayed fallback to ensure container size caught up
-        handleScroll(true);
-        const t = setTimeout(() => handleScroll(true), 100);
-        return () => clearTimeout(t);
-    }, [scale, virtualizer, handleScroll]);
-
     // Initial setup and event listeners
     useEffect(() => {
         const container = containerRef.current;
         if (container) {
-            // Use the direct function reference for proper removal
             container.addEventListener('scroll', handleScroll, { passive: true });
             handleScroll(true);
             return () => container.removeEventListener('scroll', handleScroll);
         }
     }, [handleScroll]);
 
-    // Handle external page changes (Smart Jumping)
+    // 🚀 ZOOM & MODE LOCK: Detect changes during render to prevent page jumping
+    const lastScale = useRef(scale);
+    const lastMode = useRef(isTwoPageMode);
+    if (lastScale.current !== scale || lastMode.current !== isTwoPageMode) {
+        isJumping.current = true; // Lock page number updates
+        lastScale.current = scale;
+        lastMode.current = isTwoPageMode;
+    }
+
+    // Unified Effect: Handle Scale, Page Jumps, and Mode Changes
     useEffect(() => {
-        // If the current page changed due to a scroll event, don't trigger the jump logic
+        if (!containerRef.current || !pdfDocument) return;
+
+        // 1. Synchronize Virtualizer with new scale/mode
+        const newPageHeight = PAGE_HEIGHT_ESTIMATE * scale;
+        virtualizer.options.pageHeight = newPageHeight;
+
+        // 2. Determine if we need to adjust scroll (Jump or Zoom)
+        // If the change came from a user scroll, skip automatic adjustment
         if (isScrollChange.current) {
             isScrollChange.current = false;
+            isJumping.current = false; // Release lock if it was set
             return;
         }
 
-        if (containerRef.current && currentPage) {
-            let pageOffset = currentPage - 1;
+        const container = containerRef.current;
+        let pageOffset = currentPage - 1;
 
-            // In Two-Page mode, we jump to the "pair" start row
-            if (isTwoPageMode) {
-                pageOffset = Math.floor((currentPage - 1) / 2);
-            }
-
-            const targetPos = pageOffset * (PAGE_HEIGHT_ESTIMATE * scale);
-            const currentPos = containerRef.current.scrollTop;
-
-            // Only scroll if difference is significant (e.g. from jump or zoom)
-            if (Math.abs(currentPos - targetPos) > 10) {
-                isJumping.current = true;
-                if (jumpTimeout.current) clearTimeout(jumpTimeout.current);
-
-                // Perform the jump
-                containerRef.current.scrollTop = targetPos;
-
-                // CRITICAL: Manually update the lastScrollTop and trigger the visibility check
-                lastScrollTop.current = targetPos;
-                handleScroll(true); // Forced update to bypass isJumping check
-
-                // Extended timeout to prevent scroll event conflicts
-                jumpTimeout.current = setTimeout(() => {
-                    isJumping.current = false;
-                }, 400);
-            }
+        if (isTwoPageMode) {
+            pageOffset = Math.floor((currentPage - 1) / 2);
         }
-        return () => {
+
+        const targetPos = pageOffset * newPageHeight;
+        const currentPos = container.scrollTop;
+
+        // If the difference is significant (zoom or jump), update scroll
+        if (Math.abs(currentPos - targetPos) > 5) {
+            isJumping.current = true;
             if (jumpTimeout.current) clearTimeout(jumpTimeout.current);
-        };
-    }, [currentPage, scale, isTwoPageMode, handleScroll]);
+
+            container.scrollTop = targetPos;
+            lastScrollTop.current = targetPos;
+
+            // Trigger immediate visibility update for new position
+            handleScroll(true);
+
+            jumpTimeout.current = setTimeout(() => {
+                isJumping.current = false;
+            }, 400);
+        } else {
+            // Even if positions match, we might need a visibility refresh (e.g. rotation)
+            handleScroll(true);
+            isJumping.current = false; // Release lock
+        }
+
+    }, [currentPage, scale, isTwoPageMode, handleScroll, pdfDocument]);
 
     if (!pdfDocument) return null;
 
