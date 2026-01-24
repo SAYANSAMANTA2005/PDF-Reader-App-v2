@@ -46,7 +46,8 @@ const PDFViewer = () => {
         setActiveEquation,
         isActiveRecallMode,
         isTtsSelecting,
-        handleTtsPointClick
+        handleTtsPointClick,
+        ttsHighlightItemIndex
     } = usePDF();
 
     const containerRef = useRef(null);
@@ -286,6 +287,7 @@ const PDFViewer = () => {
                                     isActiveRecallMode={isActiveRecallMode}
                                     isTtsSelecting={isTtsSelecting}
                                     handleTtsPointClick={handleTtsPointClick}
+                                    ttsHighlightItemIndex={leftPageNum === currentPage ? ttsHighlightItemIndex : -1}
                                 />
                                 {rightPageNum <= numPages && (
                                     <PDFPage
@@ -302,6 +304,7 @@ const PDFViewer = () => {
                                         isActiveRecallMode={isActiveRecallMode}
                                         isTtsSelecting={isTtsSelecting}
                                         handleTtsPointClick={handleTtsPointClick}
+                                        ttsHighlightItemIndex={rightPageNum === currentPage ? ttsHighlightItemIndex : -1}
                                     />
                                 )}
                             </div>
@@ -335,6 +338,7 @@ const PDFViewer = () => {
                                 isActiveRecallMode={isActiveRecallMode}
                                 isTtsSelecting={isTtsSelecting}
                                 handleTtsPointClick={handleTtsPointClick}
+                                ttsHighlightItemIndex={currentPage === (isTwoPageMode ? (pageIdx * 2) + 1 || (pageIdx * 2) + 2 : pageIdx + 1) ? ttsHighlightItemIndex : -1}
                             />
                         </div>
                     );
@@ -374,7 +378,8 @@ const PDFPage = React.memo(({
     setActiveEquation,
     isActiveRecallMode,
     isTtsSelecting,
-    handleTtsPointClick
+    handleTtsPointClick,
+    ttsHighlightItemIndex
 }) => {
     const canvasRef = useRef(null);
     const textLayerRef = useRef(null);
@@ -427,10 +432,24 @@ const PDFPage = React.memo(({
 
     useEffect(() => {
         // Trigger OCR if: Page Visible AND Not Rendered/No Text AND Not Processing
+        // Also handle TTS Highlighting
+        if (textLayerRef.current && ttsHighlightItemIndex !== -1) {
+            // Clear previous
+            const prev = textLayerRef.current.querySelector('.tts-reading-highlight');
+            if (prev) prev.classList.remove('tts-reading-highlight');
+
+            // Set new
+            const activeSpan = textLayerRef.current.querySelector(`span[data-text-index="${ttsHighlightItemIndex}"]`);
+            if (activeSpan) {
+                activeSpan.classList.add('tts-reading-highlight');
+                // Optional: scroll into view? activeSpan.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+        }
+
         if (isVisible && !isOcrProcessing && !ocrData) {
             checkAndRunOCR();
         }
-    }, [isVisible, isOcrProcessing, ocrData]);
+    }, [isVisible, isOcrProcessing, ocrData, ttsHighlightItemIndex]);
 
     const checkAndRunOCR = async () => {
         try {
@@ -584,6 +603,8 @@ const PDFPage = React.memo(({
                 span.style.transform = `scaleX(${item.width / (item.str.length * fontHeight)})`;
                 span.style.transformOrigin = '0% 0%';
 
+                span.setAttribute('data-text-index', index); // Map for TTS
+
                 span.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const {
@@ -606,6 +627,25 @@ const PDFPage = React.memo(({
 
                 fragment.appendChild(span);
             });
+
+            // Add dynamic style for highlight if not exists
+            if (!document.getElementById('tts-highlight-style')) {
+                const style = document.createElement('style');
+                style.id = 'tts-highlight-style';
+                style.innerHTML = `
+                    .tts-reading-highlight {
+                        background-color: #ccff90 !important; /* Light Green */
+                        color: black !important;
+                        outline: 2px solid #76ff03;
+                        z-index: 10;
+                        mix-blend-mode: multiply;
+                        border-radius: 3px;
+                        box-shadow: 0 0 8px rgba(118, 255, 3, 0.5);
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
             textLayerRef.current.appendChild(fragment);
         };
 

@@ -29,7 +29,9 @@ const TextToSpeechPanel = ({ onClose }) => {
         isTtsSelecting,
         setIsTtsSelecting,
         ttsSelectionPoints,
-        getPageText
+        getPageTextAndMap,
+        ttsTextMap,
+        setTtsHighlightItemIndex
     } = usePDF();
 
     const [isExpanded, setIsExpanded] = useState(true);
@@ -149,7 +151,18 @@ const TextToSpeechPanel = ({ onClose }) => {
         }
 
         const highlightCallback = isHighlighting ? (start, end) => {
+            // Update internal slider range
             setHighlightedRange({ start, end, total: selectedText.length });
+
+            // Update PDF Viewer Highlight if map is available
+            if (ttsTextMap && ttsTextMap.length > 0) {
+                // Verify if we are reading the mapped content (simple length check heuristic or assume valid)
+                // Since ttsTextMap is set on Page/All read, and selectedText is set same time, they usually match.
+                const activeItem = ttsTextMap.find(item => start >= item.startIndex && start < item.endIndex);
+                if (activeItem) {
+                    setTtsHighlightItemIndex(activeItem.originalIndex);
+                }
+            }
         } : null;
 
         ttsService.speakText(selectedText, highlightCallback);
@@ -164,12 +177,22 @@ const TextToSpeechPanel = ({ onClose }) => {
             // Warming up TTS to prevent browser blocking during long OCR
             ttsService.speakText(" ", null);
 
-            const pageText = await getPageText(currentPage);
-
-            if (pageText && pageText.trim().length > 0) {
+            const result = await getPageTextAndMap(currentPage);
+            if (result && result.text && result.text.trim().length > 0) {
+                const pageText = result.text;
                 setSelectedText(pageText);
+
                 const highlightCallback = isHighlighting ? (start, end) => {
+                    // Update internal slider range
                     setHighlightedRange({ start, end, total: pageText.length });
+
+                    // Update PDF Viewer Highlight
+                    if (result.map && result.map.length > 0) {
+                        const activeItem = result.map.find(item => start >= item.startIndex && start < item.endIndex);
+                        if (activeItem) {
+                            setTtsHighlightItemIndex(activeItem.originalIndex);
+                        }
+                    }
                 } : null;
 
                 ttsService.speakText(pageText, highlightCallback);
@@ -243,12 +266,14 @@ const TextToSpeechPanel = ({ onClose }) => {
     const handleStop = () => {
         ttsService.stop();
         setHighlightedRange(null);
+        setTtsHighlightItemIndex(-1);
     };
 
     // Clear selection
     const handleClearSelection = () => {
         setSelectedText('');
         setHighlightedRange(null);
+        setTtsHighlightItemIndex(-1);
     };
 
     const handleExplainSimply = async () => {

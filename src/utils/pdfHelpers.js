@@ -64,6 +64,74 @@ export const reconstructTextSpacially = (items) => {
 };
 
 /**
+ * Reconstructs text AND maps it back to original item indices.
+ * @returns {Object} { text: string, itemMap: [] }
+ */
+export const getSpatialTextAndMap = (items) => {
+    if (!items || items.length === 0) return { text: "", itemMap: [] };
+
+    // Sort items by Y (descending) and then X (ascending) to mimic reading order
+    // transform: [scaleX, skewY, skewX, scaleY, tx, ty]
+    const sortedItemsWithIndex = items.map((item, index) => ({ ...item, originalIndex: index }))
+        .sort((a, b) => {
+            const yA = a.transform[5];
+            const yB = b.transform[5];
+            if (Math.abs(yA - yB) > 5) return yB - yA; // Sort top to bottom
+            return a.transform[4] - b.transform[4]; // Sort left to right
+        });
+
+    let fullText = "";
+    let itemMap = [];
+    let lastY = -1;
+    let lastX = -1;
+    let lastHeight = 12;
+
+    for (const item of sortedItemsWithIndex) {
+        const x = item.transform[4];
+        const y = item.transform[5];
+        const str = item.str;
+        const height = Math.abs(item.transform[3]);
+
+        // New line detection
+        if (lastY !== -1 && Math.abs(y - lastY) > (height * 0.5 || 5)) {
+            if (Math.abs(y - lastY) > (height * 1.8 || 20)) {
+                fullText += "\n\n";
+            } else {
+                fullText += "\n";
+            }
+            lastX = -1;
+        }
+
+        // Space detection within line
+        if (lastX !== -1 && str.trim().length > 0) {
+            const gap = x - lastX;
+            if (gap > (height * 0.1 || 2)) {
+                if (!fullText.endsWith(" ")) {
+                    fullText += " ";
+                }
+            }
+        }
+
+        const startIndex = fullText.length;
+        fullText += str;
+        const endIndex = fullText.length;
+
+        itemMap.push({
+            originalIndex: item.originalIndex,
+            startIndex: startIndex,
+            endIndex: endIndex,
+            str: str
+        });
+
+        lastY = y;
+        lastX = x + (item.width || str.length * (height * 0.6));
+        lastHeight = height;
+    }
+
+    return { text: fullText.trim(), itemMap };
+};
+
+/**
  * Extracts all text from a PDF document.
  * @param {Object} pdfDocument - The pdf.js document object.
  * @param {Function} onProgress - Optional callback for progress updates.

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { extractTextWithCitations, reconstructTextSpacially } from '../utils/pdfHelpers';
+import { extractTextWithCitations, reconstructTextSpacially, getSpatialTextAndMap } from '../utils/pdfHelpers';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { generateTOCFromLayout, renderPageToBase64 } from '../utils/pdfStructureAnalysis';
@@ -123,6 +123,10 @@ export const PDFProvider = ({ children }) => {
     const [audioActiveInternetTrack, setAudioActiveInternetTrack] = useState(null);
     const [isTtsSelecting, setIsTtsSelecting] = useState(false);
     const [ttsSelectionPoints, setTtsSelectionPoints] = useState([]); // [{ pageNum, index, text }]
+
+    // TTS Highlighting State
+    const [ttsHighlightItemIndex, setTtsHighlightItemIndex] = useState(-1);
+    const [ttsTextMap, setTtsTextMap] = useState([]); // Map of current page text items
 
     useEffect(() => {
         if (!isTtsSelecting) {
@@ -386,26 +390,40 @@ export const PDFProvider = ({ children }) => {
     /**
      * Intelligently get text from a page (OCR Fallback)
      */
-    const getPageText = async (pageNum) => {
-        if (!pdfDocument) return "";
+    async function getPageTextAndMap(pageNum) {
+        if (!pdfDocument) return null;
         try {
             const page = await pdfDocument.getPage(pageNum);
             const textContent = await page.getTextContent();
-            let text = reconstructTextSpacially(textContent.items);
 
-            // OCR Fallback if page appears scanned
+            // Use the spatial mapper
+            const { text, itemMap } = getSpatialTextAndMap(textContent.items);
+
+            // OCR Fallback
             if (text.trim().length < 20 && textContent.items.length < 5) {
                 console.log(`🔍 TTS: Page ${pageNum} appears scanned. Triggering OCR...`);
                 const base64 = await renderPageToBase64(page);
                 const ocrResult = await ocrService.recognize(base64);
-                text = typeof ocrResult === 'string' ? ocrResult : ocrResult.text;
+                const ocrText = typeof ocrResult === 'string' ? ocrResult : ocrResult.text;
+                // For OCR, we don't have a good item map yet, just return text
+                setTtsTextMap([]);
+                return { text: ocrText, map: [] };
             }
 
-            return text.trim();
+            setTtsTextMap(itemMap);
+            return { text, map: itemMap };
         } catch (err) {
-            console.warn(`Failed to get text for page ${pageNum}`, err);
-            throw new Error(err.message || "Failed to extract text from page");
+            console.warn(`Failed to get text map for page ${pageNum}`, err);
+            return null;
         }
+    }
+
+    /**
+     * Legacy wrapper for backward compatibility
+     */
+    const getPageText = async (pageNum) => {
+        const result = await getPageTextAndMap(pageNum);
+        return result ? result.text : "";
     };
 
     const triggerAutoTOCScan = useCallback((pdf) => {
@@ -802,7 +820,9 @@ export const PDFProvider = ({ children }) => {
         audioIsMuted, setAudioIsMuted,
         audioActiveInternetTrack, setAudioActiveInternetTrack,
         audioContextRef, audioNodesRef, internetAudioRef,
-        getPageText
+        getPageText, getPageTextAndMap,
+        ttsHighlightItemIndex, setTtsHighlightItemIndex,
+        ttsTextMap
     };
 
     async function handleDownload() {
