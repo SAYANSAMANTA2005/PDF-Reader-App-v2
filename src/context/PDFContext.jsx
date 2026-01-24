@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { extractTextWithCitations } from '../utils/pdfHelpers';
+import { extractTextWithCitations, reconstructTextSpacially } from '../utils/pdfHelpers';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { generateTOCFromLayout, renderPageToBase64 } from '../utils/pdfStructureAnalysis';
+import { extractTOCFromImage } from '../utils/aiService';
+import { ocrService } from '../utils/OCRService';
 import { Capacitor } from '@capacitor/core';
 // Mobile-aware PDF vision scope
 const isMobilePlatform = Capacitor.isNativePlatform();
@@ -88,6 +91,7 @@ export const PDFProvider = ({ children }) => {
     const [pdfText, setPdfText] = useState("");
     const [pdfPagesData, setPdfPagesData] = useState([]); // For RAG Engine
     const [outline, setOutline] = useState([]); // PDF Bookmarks/Table of Contents
+    const [isGeneratingTOC, setIsGeneratingTOC] = useState(false);
 
 
 
@@ -125,6 +129,8 @@ export const PDFProvider = ({ children }) => {
             setTtsSelectionPoints([]);
         }
     }, [isTtsSelecting]);
+
+    const activeScanId = useRef(0);
 
     const audioContextRef = useRef(null);
     const audioNodesRef = useRef({});
@@ -231,9 +237,8 @@ export const PDFProvider = ({ children }) => {
                 end = p1;
             }
 
-            let fullText = "";
+            let combinedItems = [];
             for (let i = start.pageNum; i <= end.pageNum; i++) {
-                console.log(`TTS: Fetching Page ${i}...`);
                 const page = await pdfDocument.getPage(i);
                 const textContent = await page.getTextContent();
                 const items = textContent.items;
@@ -241,13 +246,11 @@ export const PDFProvider = ({ children }) => {
                 const startIdx = i === start.pageNum ? start.index : 0;
                 const endIdx = i === end.pageNum ? end.index : items.length - 1;
 
-                console.log(`TTS: Page ${i} has ${items.length} items. Slicing from ${startIdx} to ${endIdx}`);
                 const rangeItems = items.slice(startIdx, endIdx + 1);
-                const pageText = rangeItems.map(item => item.str).join(' ');
-                fullText += pageText + " ";
+                combinedItems.push(...rangeItems);
             }
 
-            const cleanText = fullText.replace(/\s+/g, ' ').trim();
+            const cleanText = reconstructTextSpacially(combinedItems);
             console.log("TTS: Capture complete. Length:", cleanText.length, "Start:", cleanText.substring(0, 50));
 
             if (!cleanText) {
@@ -380,6 +383,56 @@ export const PDFProvider = ({ children }) => {
         setNumPages(0);
     }, [pdfDocument]);
 
+    /**
+     * Intelligently get text from a page (OCR Fallback)
+     */
+    const getPageText = async (pageNum) => {
+        if (!pdfDocument) return "";
+        try {
+            const page = await pdfDocument.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            let text = reconstructTextSpacially(textContent.items);
+
+            // OCR Fallback if page appears scanned
+            if (text.trim().length < 20 && textContent.items.length < 5) {
+                console.log(`🔍 TTS: Page ${pageNum} appears scanned. Triggering OCR...`);
+                const base64 = await renderPageToBase64(page);
+                const ocrResult = await ocrService.recognize(base64);
+                text = typeof ocrResult === 'string' ? ocrResult : ocrResult.text;
+            }
+
+            return text.trim();
+        } catch (err) {
+            console.warn(`Failed to get text for page ${pageNum}`, err);
+            throw new Error(err.message || "Failed to extract text from page");
+        }
+    };
+
+    const triggerAutoTOCScan = useCallback((pdf) => {
+        if (!pdf) return;
+        setIsGeneratingTOC(true);
+        const scanId = ++activeScanId.current;
+        console.log("⚠️ Starting Smart Layout Classification (Scan ID:", scanId, ")...");
+
+        generateTOCFromLayout(pdf, (update, isIncremental) => {
+            if (scanId !== activeScanId.current) return; // Stale scan
+            if (isIncremental) {
+                setOutline(prev => [...prev, ...update]);
+                setActiveSidebarTab('bookmarks');
+            }
+        }, () => scanId !== activeScanId.current).then(layoutOutline => {
+            if (scanId !== activeScanId.current) return;
+            if (layoutOutline && layoutOutline.length > 0) {
+                console.log(`✅ Final Smart TOC with ${layoutOutline.length} entries`);
+                setOutline(layoutOutline);
+            }
+        }).finally(() => {
+            if (scanId === activeScanId.current) {
+                setIsGeneratingTOC(false);
+            }
+        });
+    }, []);
+
     const loadPDF = async (file, options = {}) => {
         const { tabId: customTabId, track = true, initialPage = 1, customFileName = null } = options;
         setIsLoading(true);
@@ -473,10 +526,15 @@ export const PDFProvider = ({ children }) => {
                     const processedOutline = await processItems(rawOutline);
                     setOutline(processedOutline);
                     if (processedOutline.length > 0) {
+                        setOutline(processedOutline);
                         setActiveSidebarTab('bookmarks');
+                    } else {
+                        // FALLBACK: Generate TOC from Layout
+                        triggerAutoTOCScan(pdf);
                     }
                 } else {
-                    setOutline([]);
+                    // FALLBACK: Generate TOC from Layout (Same logic)
+                    triggerAutoTOCScan(pdf);
                 }
             } catch (outlineErr) {
                 console.warn("Failed to extract outline:", outlineErr);
@@ -513,6 +571,37 @@ export const PDFProvider = ({ children }) => {
             setError("Failed to load PDF. Please try again.");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const generateTOCFromPage = async (pageNum) => {
+        if (!pdfDocument || !pageNum) return;
+        setIsGeneratingTOC(true);
+        const scanId = ++activeScanId.current; // Override auto-scan
+
+        try {
+            console.log(`🎯 Manually extracting TOC from Page ${pageNum}...`);
+            const page = await pdfDocument.getPage(parseInt(pageNum));
+            const base64Image = await renderPageToBase64(page);
+            const visionTOC = await extractTOCFromImage(base64Image);
+
+            if (scanId !== activeScanId.current) return; // User started another manual scan
+
+            if (visionTOC && visionTOC.length > 0) {
+                setOutline(visionTOC);
+                setIsGeneratingTOC(false);
+                return true;
+            } else {
+                toast.info("No content found on that page. Resuming automatic scan...");
+                triggerAutoTOCScan(pdfDocument);
+                return false;
+            }
+        } catch (err) {
+            if (scanId !== activeScanId.current) return;
+            console.error("Manual TOC extraction failed:", err);
+            toast.error("Error analyzing page. Resuming automatic scan...");
+            triggerAutoTOCScan(pdfDocument);
+            return false;
         }
     };
 
@@ -638,6 +727,8 @@ export const PDFProvider = ({ children }) => {
         setVisiblePageRange,
         isReading,
         setIsReading,
+        isGeneratingTOC,
+        generateTOCFromPage,
         startReading,
         stopReading,
         handleDownload,
@@ -710,7 +801,8 @@ export const PDFProvider = ({ children }) => {
         handleTtsPointClick,
         audioIsMuted, setAudioIsMuted,
         audioActiveInternetTrack, setAudioActiveInternetTrack,
-        audioContextRef, audioNodesRef, internetAudioRef
+        audioContextRef, audioNodesRef, internetAudioRef,
+        getPageText
     };
 
     async function handleDownload() {

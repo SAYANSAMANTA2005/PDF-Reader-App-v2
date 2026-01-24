@@ -103,7 +103,58 @@ const TOCItem = ({ item, depth = 0 }) => {
 };
 
 const TableOfContents = () => {
-    const { outline, pdfDocument } = usePDF();
+    const { outline, pdfDocument, isGeneratingTOC, generateTOCFromPage } = usePDF();
+    const [manualPage, setManualPage] = useState('');
+
+    const renderManualInput = (isFloating = false) => (
+        <div className="manual-toc-input" style={{
+            padding: '12px',
+            background: isFloating ? 'rgba(var(--accent-rgb), 0.05)' : 'var(--bg-secondary)',
+            borderRadius: '8px',
+            border: '1px solid var(--border-color)',
+            marginBottom: '16px'
+        }}>
+            <p style={{ fontSize: '0.65rem', fontWeight: '800', color: 'var(--accent-color)', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Manual Content Extraction
+            </p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                    type="number"
+                    placeholder="Enter TOC page #"
+                    value={manualPage}
+                    onChange={(e) => setManualPage(e.target.value)}
+                    style={{
+                        flex: 1,
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '4px',
+                        padding: '6px 10px',
+                        fontSize: '0.75rem',
+                        color: 'var(--text-primary)',
+                        outline: 'none'
+                    }}
+                />
+                <button
+                    onClick={() => generateTOCFromPage(manualPage)}
+                    disabled={!manualPage}
+                    style={{
+                        background: 'var(--accent-color)',
+                        color: 'white',
+                        border: 'none',
+                        padding: '6px 14px',
+                        borderRadius: '4px',
+                        fontSize: '0.7rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'opacity 0.2s',
+                        opacity: !manualPage ? 0.5 : 1
+                    }}
+                >
+                    EXTRACT
+                </button>
+            </div>
+        </div>
+    );
 
     if (!pdfDocument) {
         return (
@@ -113,33 +164,67 @@ const TableOfContents = () => {
         );
     }
 
+    if (isGeneratingTOC) {
+        return (
+            <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.8 }}>
+                    <div className="spinner" style={{
+                        width: '32px', height: '32px',
+                        border: '3px solid var(--border-color)',
+                        borderTopColor: 'var(--accent-color)',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite',
+                        marginBottom: '16px'
+                    }}></div>
+                    <p style={{ fontSize: '0.9rem', fontWeight: '700', marginBottom: '4px' }}>Analyzing Layout...</p>
+                    <p style={{ fontSize: '0.75rem', opacity: 0.7, textAlign: 'center' }}>Searching first 20 pages for Syllabus & Chapters</p>
+                </div>
+                {renderManualInput(true)}
+            </div>
+        );
+    }
+
     if (!outline || outline.length === 0) {
         return (
-            <div style={{ padding: '40px 20px', textAlign: 'center', opacity: 0.5 }}>
-                <Bookmark size={32} style={{ marginBottom: '12px' }} />
-                <p style={{ fontSize: '0.9rem' }}>No table of contents found in this PDF</p>
+            <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <Bookmark size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
+                <p style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '8px' }}>No content detected</p>
+                <p style={{ fontSize: '0.75rem', opacity: 0.6, textAlign: 'center', marginBottom: '24px' }}>
+                    Auto-scan failed to identify a TOC. Please point us to the right page.
+                </p>
+                <div style={{ width: '100%' }}>
+                    {renderManualInput()}
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="table-of-contents" style={{ padding: '12px', height: '100%', overflowY: 'auto' }}>
+        <div className="table-of-contents" style={{ padding: '16px', height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
             <div style={{
                 fontSize: '0.75rem',
                 fontWeight: '800',
                 color: 'var(--text-secondary)',
                 marginBottom: '16px',
-                padding: '0 12px',
+                padding: '0 4px',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                justifyContent: 'space-between'
             }}>
-                <Bookmark size={14} />
-                Table of Contents
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Bookmark size={14} />
+                    Table of Contents
+                </div>
+                <span style={{ fontSize: '0.65rem', padding: '2px 8px', background: 'rgba(var(--accent-rgb), 0.1)', color: 'var(--accent-color)', borderRadius: '12px', fontWeight: '700' }}>
+                    {outline.length} Chapters
+                </span>
             </div>
-            <div className="toc-list">
+
+            {renderManualInput()}
+
+            <div className="toc-list" style={{ flex: 1 }}>
                 {outline.map((item, idx) => (
                     <TOCItem key={`${item.title}-${idx}`} item={item} />
                 ))}

@@ -28,7 +28,8 @@ const TextToSpeechPanel = ({ onClose }) => {
         numPages,
         isTtsSelecting,
         setIsTtsSelecting,
-        ttsSelectionPoints
+        ttsSelectionPoints,
+        getPageText
     } = usePDF();
 
     const [isExpanded, setIsExpanded] = useState(true);
@@ -142,8 +143,8 @@ const TextToSpeechPanel = ({ onClose }) => {
 
     // Read selected text
     const handleReadSelection = () => {
-        if (!selectedText) {
-            alert('Please select text or paste text to read');
+        if (!selectedText || selectedText.trim().length === 0) {
+            toast.error('No text selected to read');
             return;
         }
 
@@ -159,21 +160,28 @@ const TextToSpeechPanel = ({ onClose }) => {
         if (!pdfDocument) return;
 
         try {
-            const page = await pdfDocument.getPage(currentPage);
-            const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => item.str).join(' ');
+            setStatus('processing');
+            // Warming up TTS to prevent browser blocking during long OCR
+            ttsService.speakText(" ", null);
 
-            if (pageText) {
+            const pageText = await getPageText(currentPage);
+
+            if (pageText && pageText.trim().length > 0) {
                 setSelectedText(pageText);
                 const highlightCallback = isHighlighting ? (start, end) => {
                     setHighlightedRange({ start, end, total: pageText.length });
                 } : null;
 
                 ttsService.speakText(pageText, highlightCallback);
+            } else {
+                toast.error("Could not find any readable text on this page.");
             }
         } catch (error) {
-            console.error('Error reading page:', error);
-            alert('Failed to read page');
+            const errorMsg = error?.message || (error?.isTrusted ? "Browser blocked speech synthesis" : "Failed to read page");
+            console.error('Error reading page:', errorMsg);
+            toast.error(errorMsg);
+        } finally {
+            setStatus('idle');
         }
     };
 
@@ -182,13 +190,22 @@ const TextToSpeechPanel = ({ onClose }) => {
         if (!pdfDocument) return;
 
         try {
+            setStatus('processing');
+            toast.info("Extracting text from document...");
+            // Warm up TTS
+            ttsService.speakText(" ", null);
+
             const textArray = [];
-            for (let i = 1; i <= Math.min(numPages, 50); i++) {
-                const page = await pdfDocument.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(' ');
-                if (pageText) {
-                    textArray.push(`Page ${i}: ${pageText}`);
+            const limit = Math.min(numPages, 20);
+
+            for (let j = 1; j <= limit; j++) {
+                try {
+                    const pageText = await getPageText(j);
+                    if (pageText && pageText.trim().length > 0) {
+                        textArray.push(`Page ${j}: ${pageText}`);
+                    }
+                } catch (e) {
+                    console.warn(`Skipping Page ${j} due to extraction error`);
                 }
             }
 
@@ -199,10 +216,15 @@ const TextToSpeechPanel = ({ onClose }) => {
                 } : null;
 
                 ttsService.speakQueue(textArray, highlightCallback);
+            } else {
+                toast.error("Could not find any readable text in the document.");
             }
         } catch (error) {
-            console.error('Error reading pages:', error);
-            alert('Failed to read pages');
+            const errorMsg = error?.message || "Failed to read document";
+            console.error('Error reading pages:', errorMsg);
+            toast.error(errorMsg);
+        } finally {
+            setStatus('idle');
         }
     };
 

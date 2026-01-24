@@ -26,6 +26,9 @@ const getModel = (key, modelName = "gemini-3-flash-preview") => {
     return genAI.getGenerativeModel({ model: modelName });
 };
 
+// Sticky key rotation state
+let currentKeyIndex = 0;
+
 // Global fallback wrapper with rotation for multiple keys
 const callAIFunc = async (prompt, text, modelName = "gemini-3-flash-preview") => {
     const keys = getApiKeys();
@@ -35,42 +38,80 @@ const callAIFunc = async (prompt, text, modelName = "gemini-3-flash-preview") =>
 
     let lastError = null;
 
-    // Try each key in sequence
-    for (let i = 0; i < keys.length; i++) {
+    // Try keys starting from the last known good one
+    for (let attempt = 0; attempt < keys.length; attempt++) {
+        const i = (currentKeyIndex + attempt) % keys.length;
         try {
             const key = keys[i];
             const model = getModel(key, modelName);
             const fullPrompt = `${prompt}\n\nContent:\n${text}`;
             const result = await model.generateContent(fullPrompt);
+            currentKeyIndex = i; // Save working key
             return (await result.response).text();
         } catch (error) {
             lastError = error;
             console.error(`API Key ${i + 1} failed:`, error.message);
 
-            // If it's a quota error or internal error, try next key
-            if (error.message.includes("429") || error.message.includes("quota") || error.message.includes("500")) {
-                continue;
-            }
-
-            // If it's an invalid key and we have more, try next. Otherwise throw.
-            if (error.message.includes("API key not valid") || error.message.includes("API_KEY_INVALID")) {
-                if (i === keys.length - 1) {
-                    throw new Error("One or more API keys are invalid. Please check your settings.");
-                }
-                continue;
-            }
-
-            // For 404 on specific models, fallback but don't necessarily rotate key immediately unless it continues to fail
+            // Handle specific fallback for non-existent models
             if (error.message.includes("404") && modelName !== "gemini-3-flash-preview") {
                 return callAIFunc(prompt, text.substring(0, 10000), "gemini-3-flash-preview");
             }
 
-            // If we've exhausted all keys, throw the last error
-            if (i === keys.length - 1) break;
+            // AGGRESSIVE FALLBACK
+            if (attempt < keys.length - 1) {
+                const nextKey = (i + 1) % keys.length;
+                console.warn(`🔄 Error with Key ${i + 1}. Rotating to Key ${nextKey + 1}...`);
+                currentKeyIndex = nextKey;
+                continue;
+            }
         }
     }
 
-    throw lastError || new Error("Failed to process request with available API keys.");
+    throw lastError || new Error("Failed after trying all available API keys.");
+};
+
+// Global fallback wrapper for Vision/Multimodal calls with key rotation
+const callAIVisionFunc = async (prompt, base64Image, modelName = "gemini-3-flash-preview") => {
+    const keys = getApiKeys();
+    if (keys.length === 0) {
+        throw new Error("No API keys found. Please enter your Gemini API keys in the settings.");
+    }
+
+    let lastError = null;
+
+    for (let attempt = 0; attempt < keys.length; attempt++) {
+        const i = (currentKeyIndex + attempt) % keys.length;
+        try {
+            const key = keys[i];
+            const model = getModel(key, modelName);
+
+            const result = await model.generateContent([
+                prompt,
+                {
+                    inlineData: {
+                        data: base64Image.split(',')[1],
+                        mimeType: "image/png"
+                    }
+                }
+            ]);
+
+            currentKeyIndex = i; // Save working key
+            return (await result.response).text();
+        } catch (error) {
+            lastError = error;
+            console.error(`Vision API Key ${i + 1} failed:`, error.message);
+
+            // AGGRESSIVE FALLBACK
+            if (attempt < keys.length - 1) {
+                const nextKey = (i + 1) % keys.length;
+                console.warn(`🔄 Vision Error with Key ${i + 1}. Rotating to Key ${nextKey + 1}...`);
+                currentKeyIndex = nextKey;
+                continue;
+            }
+        }
+    }
+
+    throw lastError || new Error("Failed after trying all available API keys for Vision analysis.");
 };
 
 export const clearApiKey = () => {
@@ -609,29 +650,13 @@ export const refineOCRText = async (dirtyText) => {
  * @param {string} base64Image - Base64 encoded image data.
  */
 export const performNeuralOCR = async (base64Image) => {
-    const keys = getApiKeys();
-    if (keys.length === 0) throw new Error("No API keys found.");
-
-    const key = keys[0];
-    const model = getModel(key, "gemini-1.5-flash"); // Flash is great for OCR
-
     const prompt = `Perform professional-grade OCR on this document image. 
     Reconstruct the full text with perfect spacing, indentation, and paragraph structure.
     Detect tables, headers, and footers and format them clearly in Markdown if possible.
     The output should be clean, searchable, and professional.
     Return ONLY the extracted text.`;
 
-    const result = await model.generateContent([
-        prompt,
-        {
-            inlineData: {
-                data: base64Image.split(',')[1],
-                mimeType: "image/png"
-            }
-        }
-    ]);
-
-    return (await result.response).text();
+    return callAIVisionFunc(prompt, base64Image);
 };
 
 /**
@@ -786,4 +811,73 @@ export const askPDFGrounded = async (question, pagesData, history = []) => {
     Answer:`;
 
     return callAIFunc(prompt, "");
+};
+
+/**
+ * TOC Extraction AI - Extracts a hierarchical Table of Contents from raw text.
+ */
+export const extractTOCFromText = async (rawTOCPageText) => {
+    const prompt = `You are a document structure expert. Below is the raw text extracted from a "Table of Contents" or "Syllabus" page of a book/document.
+    
+    Task:
+    1. Identify all chapter/section titles and their corresponding page numbers.
+    2. Maintain the hierarchical structure (Chapter -> Section -> Subsection).
+    3. Return ONLY a JSON array in the following format:
+    [{ "title": "Chapter Title", "page": 10, "children": [{ "title": "Section Title", "page": 12, "children": [] }] }]
+    
+    Rules:
+    - If a page number is missing for a heading, omit the "page" property or set it to null.
+    - Ensure page numbers are integers.
+    - Be precise with titles.
+    - If no clear TOC structure is found, return an empty array [].
+    
+    Raw Text:
+    ${rawTOCPageText}`;
+
+    const response = await callAIFunc(prompt, "");
+    try {
+        const jsonMatch = response.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) return [];
+        return JSON.parse(jsonMatch[0]);
+    } catch (e) {
+        console.error("AI TOC Extraction failed to parse JSON:", e);
+        return [];
+    }
+};
+
+/**
+ * Multimodal TOC Extraction - Uses Gemini Vision to find and parse TOC from a page image.
+ * This is the ultimate fallback for scanned books.
+ */
+export const extractTOCFromImage = async (base64Image) => {
+    const prompt = `You are a document structure expert. Look at this PDF page image.
+    
+    Task:
+    1. Determine if this page is a "Table of Contents", "Brief Contents", "Summary of Contents", or "Syllabus".
+    2. If it contains a list of chapters/sections with page numbers, extract them.
+    3. Even if it is a "Brief" Table of Contents (only major sections), extract it!
+    4. Maintain the hierarchical structure (Chapter -> Section -> Subsection).
+    5. Return ONLY a JSON array in the following format:
+    [{ "title": "Chapter Title", "page": 20, "children": [...] }]
+    
+    Rules:
+    - If it's a valid TOC, provide as many items as visible.
+    - Return an empty array [] ONLY if the page is completely unrelated to a Table of Contents.
+    - Be extremely precise with page numbers.
+    - Return only the raw JSON code block or string.`;
+
+    try {
+        const response = await callAIVisionFunc(prompt, base64Image);
+        const jsonMatch = response.match(/\[[\s\S]*\]/);
+
+        if (!jsonMatch) {
+            console.warn("Vision AI did not return a valid JSON array for TOC.");
+            return [];
+        }
+
+        return JSON.parse(jsonMatch[0]);
+    } catch (e) {
+        console.error("Vision TOC Extraction failed:", e);
+        return [];
+    }
 };
