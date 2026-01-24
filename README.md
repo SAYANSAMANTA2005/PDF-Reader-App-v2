@@ -1,3 +1,4 @@
+
 # PDF Reader App
 
 A modern, fast, and feature-rich PDF Reader application built with React and Vite.
@@ -42,6 +43,22 @@ A modern, fast, and feature-rich PDF Reader application built with React and Vit
 - **Search**: Built-in text search within PDF documents.
 - **Offline Capable**: Works offline after initial load (PWA ready).
 - **Responsive Design**: Optimized for desktops, tablets, and mobile devices.
+
+### 🚀 New Pro Features (v2.0)
+
+#### 🧠 Advanced AI Capabilities
+*   **Streaming Table of Contents**: Chapters and sections appear **instantly** in the sidebar as the AI discovers them. No more waiting for the full scan to finish!
+*   **Intelligent Auto-Resume**: The system remembers your progress. If a manual scan fails or an API limit is hit, the AI **automatically resumes** searching from where it left off.
+*   **Robust multi-Key Rotation**: Automatically switches between API keys if one gets exhausted, ensuring 99.9% uptime for heavy textbook analysis.
+
+#### 🎙️ Universal Text-to-Speech
+*   **OCR Fallback Engine**: Can now read **scanned images** and non-selectable text aloud by intelligently "seeing" the page content first.
+*   **Smart Reconstruction**: Reads complex layouts (columns, sidebars) in the correct human-readable order, not just computer line-order.
+*   **Instant Playback**: Uses "pre-warming" technology to prevent browser audio blocking, ensuring speech starts the moment you click.
+
+#### 🛠️ Enhanced Productivity
+*   **Manual Priority Mode**: Know the page number? Type it in and hit "Extract" to instantly pause the background scan and prioritize your request.
+*   **Native File Saving**: Integrated with the file system to let you choose exactly where to save your annotated PDFs (supported browsers only).
 
 ## Tech Stack
 

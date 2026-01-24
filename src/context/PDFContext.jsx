@@ -884,6 +884,31 @@ export const PDFProvider = ({ children }) => {
 
             const pdfBytes = await pdfDoc.save();
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+
+            // Try File System Access API first (Chrome, Edge, Opera)
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: `annotated_${fileName || 'document.pdf'}`,
+                        types: [{
+                            description: 'PDF Document',
+                            accept: { 'application/pdf': ['.pdf'] },
+                        }],
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    return; // Success, exit
+                } catch (pickerErr) {
+                    if (pickerErr.name !== 'AbortError') {
+                        console.warn("File picker failed, falling back:", pickerErr);
+                    } else {
+                        return; // User cancelled picker
+                    }
+                }
+            }
+
+            // Fallback to standard download
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
