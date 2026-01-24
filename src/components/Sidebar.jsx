@@ -16,9 +16,10 @@ import ResearchExplorer from './ResearchExplorer';
 import EcosystemPanel from './EcosystemPanel';
 import ProStore from './ProStore';
 import AmbientSoundPlayer from './AmbientSoundPlayer';
+import TableOfContents from './TableOfContents';
 import {
     Grid,
-    Bookmark,
+    List,
     Sparkles,
     BookOpen,
     Share2,
@@ -62,6 +63,7 @@ const Sidebar = () => {
 
     const tabs = [
         { id: 'tabmanager', icon: <Layout size={16} />, label: 'Files' },
+        { id: 'bookmarks', icon: <List size={16} />, label: 'Content' },
         { id: 'thumbnails', icon: <Grid size={16} />, label: 'Nodes' },
         { id: 'summary', icon: <Sparkles size={16} />, label: 'AI' },
         { id: 'graph', icon: <GitBranch size={16} />, label: 'Graph' },
@@ -141,9 +143,7 @@ const Sidebar = () => {
                 {activeSidebarTab === 'ecosystem' && <EcosystemPanel />}
                 {activeSidebarTab === 'workspace' && <WorkspacePanel />}
                 {activeSidebarTab === 'store' && <ProStore />}
-                {activeSidebarTab === 'bookmarks' && (
-                    <div className="p-4 text-center text-secondary">Bookmarks not yet implemented</div>
-                )}
+                {activeSidebarTab === 'bookmarks' && <TableOfContents />}
             </div>
 
 

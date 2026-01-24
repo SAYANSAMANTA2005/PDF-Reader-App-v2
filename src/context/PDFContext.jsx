@@ -87,6 +87,7 @@ export const PDFProvider = ({ children }) => {
     const [references, setReferences] = useState([]);
     const [pdfText, setPdfText] = useState("");
     const [pdfPagesData, setPdfPagesData] = useState([]); // For RAG Engine
+    const [outline, setOutline] = useState([]); // PDF Bookmarks/Table of Contents
 
 
 
@@ -429,6 +430,59 @@ export const PDFProvider = ({ children }) => {
             setPdfPagesData([]); // Reset RAG data
             console.log(`📄 PDF loaded (${pdf.numPages} pages) - Text extraction deferred for performance`);
 
+            // Extract Outline (Table of Contents)
+            try {
+                const rawOutline = await pdf.getOutline();
+                if (rawOutline) {
+                    const processItems = async (items) => {
+                        const results = [];
+                        for (const item of items) {
+                            let pageNum = null;
+                            try {
+                                if (item.dest) {
+                                    let dest = item.dest;
+                                    if (typeof dest === 'string') {
+                                        dest = await pdf.getDestination(dest);
+                                    }
+                                    if (Array.isArray(dest)) {
+                                        const ref = dest[0];
+                                        if (ref && typeof ref === 'object') {
+                                            pageNum = (await pdf.getPageIndex(ref)) + 1;
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn("Failed to get page index for outline item", e);
+                            }
+
+                            const children = item.items && item.items.length > 0
+                                ? await processItems(item.items)
+                                : [];
+
+                            results.push({
+                                title: item.title,
+                                page: pageNum,
+                                children: children,
+                                bold: item.bold,
+                                italic: item.italic,
+                                color: item.color
+                            });
+                        }
+                        return results;
+                    };
+                    const processedOutline = await processItems(rawOutline);
+                    setOutline(processedOutline);
+                    if (processedOutline.length > 0) {
+                        setActiveSidebarTab('bookmarks');
+                    }
+                } else {
+                    setOutline([]);
+                }
+            } catch (outlineErr) {
+                console.warn("Failed to extract outline:", outlineErr);
+                setOutline([]);
+            }
+
             // Start background extraction for RAG engine (True AI)
             extractTextWithCitations(pdf).then(data => {
                 setPdfPagesData(data);
@@ -637,6 +691,7 @@ export const PDFProvider = ({ children }) => {
         references, setReferences,
         pdfText, setPdfText,
         pdfPagesData, setPdfPagesData,
+        outline, setOutline,
 
         // Growth & Viral States
         referralPoints, setReferralPoints,
@@ -659,21 +714,12 @@ export const PDFProvider = ({ children }) => {
     };
 
     async function handleDownload() {
-        if (!pdfFile || !annotations) return;
+        if (!pdfDocument || !annotations) return;
         try {
             const { PDFDocument, rgb } = await import('pdf-lib');
 
-            let existingPdfBytes;
-            if (typeof pdfFile === 'string') {
-                existingPdfBytes = await fetch(pdfFile).then(res => res.arrayBuffer());
-            } else if (pdfFile instanceof File) {
-                existingPdfBytes = await pdfFile.arrayBuffer();
-            } else if (pdfFile instanceof ArrayBuffer) {
-                existingPdfBytes = pdfFile;
-            } else {
-                console.error("No raw PDF bytes available for download");
-                return;
-            }
+            // Optimized: Use direct bytes from the loaded document instead of re-fetching
+            const existingPdfBytes = await pdfDocument.getData();
 
             const pdfDoc = await PDFDocument.load(existingPdfBytes);
             const pages = pdfDoc.getPages();
@@ -759,6 +805,65 @@ export const PDFProvider = ({ children }) => {
             alert("Failed to generate annotated PDF. Check console for details.");
         }
     }
+
+    // ==================== RECOVERY HANDSHAKE ENGINE ====================
+    // 1. Check for pending downloads on mount/load
+    useEffect(() => {
+        if (pdfDocument && localStorage.getItem('RELOAD_PENDING_DOWNLOAD')) {
+            console.log("🔄 Recovery Handshake: Triggering post-reload download...");
+            localStorage.removeItem('RELOAD_PENDING_DOWNLOAD');
+            // Give the UI a moment to settle
+            setTimeout(() => {
+                handleDownload();
+            }, 1500);
+        }
+    }, [pdfDocument]);
+
+    // 2. Persist annotations to local storage for recovery
+    useEffect(() => {
+        if (Object.keys(annotations).length > 0) {
+            localStorage.setItem('cached_annotations', JSON.stringify(annotations));
+        }
+    }, [annotations]);
+
+    // 3. Browser Event Listeners (Enhanced)
+    useEffect(() => {
+        const handleAutoDownload = (e) => {
+            const totalAnns = Object.values(annotations).reduce((acc, curr) => acc + curr.length, 0);
+
+            if (totalAnns > 0) {
+                // Set the flag for post-reload download in case sync download is blocked
+                localStorage.setItem('RELOAD_PENDING_DOWNLOAD', 'true');
+
+                // Attempt immediate download (may be blocked)
+                handleDownload();
+
+                // Standard browser prompt
+                const msg = "We're preparing your download. Don't worry, your work is saved and will auto-download after the refresh!";
+                e.preventDefault();
+                e.returnValue = msg;
+                return msg;
+            }
+        };
+
+        const handleKeys = (e) => {
+            if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+                const totalAnns = Object.values(annotations).reduce((acc, curr) => acc + curr.length, 0);
+                if (totalAnns > 0) {
+                    localStorage.setItem('RELOAD_PENDING_DOWNLOAD', 'true');
+                    handleDownload();
+                }
+            }
+        };
+
+        window.addEventListener('beforeunload', handleAutoDownload);
+        window.addEventListener('keydown', handleKeys);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleAutoDownload);
+            window.removeEventListener('keydown', handleKeys);
+        };
+    }, [annotations, pdfDocument, fileName]);
 
     return (
         <PDFContext.Provider value={value}>
