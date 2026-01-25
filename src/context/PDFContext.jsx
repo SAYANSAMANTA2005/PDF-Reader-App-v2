@@ -548,11 +548,13 @@ export const PDFProvider = ({ children }) => {
                         setActiveSidebarTab('bookmarks');
                     } else {
                         // FALLBACK: Generate TOC from Layout
-                        triggerAutoTOCScan(pdf);
+                        // triggerAutoTOCScan(pdf); // DISABLED: Now manual
+                        toast.info("No Table of Contents found. You can scan for it AI in the 'Content' tab.", { duration: 5000 });
                     }
                 } else {
                     // FALLBACK: Generate TOC from Layout (Same logic)
-                    triggerAutoTOCScan(pdf);
+                    // triggerAutoTOCScan(pdf); // DISABLED: Now manual
+                    toast.info("No Table of Contents found. You can scan for it AI in the 'Content' tab.", { duration: 5000 });
                 }
             } catch (outlineErr) {
                 console.warn("Failed to extract outline:", outlineErr);

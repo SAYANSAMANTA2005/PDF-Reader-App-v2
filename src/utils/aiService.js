@@ -881,3 +881,51 @@ export const extractTOCFromImage = async (base64Image) => {
         return [];
     }
 };
+
+/**
+ * Handwriting to Typed PDF Converter (Step 2, 3, 4, 5 AI Pipeline)
+ * Performs OCR, Structure Detection, Cleaning, and Formatting in one pass.
+ */
+/**
+ * Handwriting to Typed PDF Converter (Step 2, 3, 4, 5 AI Pipeline)
+ * Performs OCR, Structure Detection, Cleaning, and Formatting in one pass.
+ * @param {string} base64Image
+ * @param {boolean} isFastMode - If true, optimizes for speed (<2s) over perfect grammar.
+ */
+export const convertHandwritingToTyped = async (base64Image, isFastMode = false) => {
+    let prompt = "";
+
+    if (isFastMode) {
+        prompt = `You are a high-speed "Handwriting to Markdown" engine.
+    
+    Task: Convert this handwritten page to Markdown IMMEDIATELY.
+    Priority: SPEED (~2 seconds target).
+    
+    Rules:
+    1. Transcribe text exactly as seen (OCR).
+    2. Detect basic structure: # Headings, - Lists, Tables.
+    3. Math: Output straightforward LaTeX math (e.g. $E=mc^2$).
+    4. Skip deep grammar fixing: only fix trivial errors.
+    5. Output ONLY Markdown.`;
+    } else {
+        prompt = `You are a professional "Handwriting to LaTeX/Markdown" conversion engine.
+    
+    Task:
+    Convert the attached handwritten document image into a clean, structured Markdown format.
+    
+    Strict Pipeline:
+    1. **OCR**: accurately transcribe all handwritten text.
+    2. **Structure**: Detect headings, subheadings, lists, and paragraphs. Use Markdown (#, ##, -, *).
+    3. **Math**: Detect any equations (even messy ones) and format them as Markdown-friendly math (e.g. E = mc^2 or appropriate text representation).
+    4. **Tables**: If you detect tabular data (rows/columns), ALWAYS format it as a standard Markdown Table (| Header | Header |). Do NOT use LaTeX arrays for general text tables.
+    5. **Correction**: Fix obvious spelling or grammar mistakes in the handwriting.
+    6. **Formatting**: Ensure the output is ready to be rendered into a beautiful document.
+    
+    Output Format:
+    Return ONLY the Markdown content. Do not include "Here is the markdown" preamble.`;
+    }
+
+    // Use Flash model for speed if requested
+    // "gemini-1.5-flash" is typically the fastest vision model available
+    return callAIVisionFunc(prompt, base64Image, isFastMode ? "gemini-1.5-flash" : "gemini-3-flash-preview");
+};

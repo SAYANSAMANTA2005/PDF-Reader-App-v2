@@ -17,6 +17,7 @@ import EcosystemPanel from './EcosystemPanel';
 import ProStore from './ProStore';
 import AmbientSoundPlayer from './AmbientSoundPlayer';
 import TableOfContents from './TableOfContents';
+import HandwritingPanel from './HandwritingPanel';
 import {
     Grid,
     List,
@@ -33,7 +34,8 @@ import {
     Users,
     TrendingUp,
     Diamond,
-    Music
+    Music,
+    PenTool
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -74,6 +76,7 @@ const Sidebar = () => {
         { id: 'music', icon: <Music size={16} />, label: 'Music' },
         { id: 'workspace', icon: <Layers size={16} />, label: 'Pro' },
         { id: 'store', icon: <Diamond size={16} className={isPremium ? "text-yellow-500" : "text-accent"} />, label: isPremium ? 'Elite' : 'Upgrade' },
+        { id: 'handwriting', icon: <PenTool size={16} />, label: 'Digitize' },
     ];
 
     return (
@@ -144,6 +147,7 @@ const Sidebar = () => {
                 {activeSidebarTab === 'workspace' && <WorkspacePanel />}
                 {activeSidebarTab === 'store' && <ProStore />}
                 {activeSidebarTab === 'bookmarks' && <TableOfContents />}
+                {activeSidebarTab === 'handwriting' && <HandwritingPanel />}
             </div>
 
 

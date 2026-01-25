@@ -103,7 +103,7 @@ const TOCItem = ({ item, depth = 0 }) => {
 };
 
 const TableOfContents = () => {
-    const { outline, pdfDocument, isGeneratingTOC, generateTOCFromPage } = usePDF();
+    const { outline, pdfDocument, isGeneratingTOC, generateTOCFromPage, triggerAutoTOCScan } = usePDF();
     const [manualPage, setManualPage] = useState('');
 
     const renderManualInput = (isFloating = false) => (
@@ -190,8 +190,28 @@ const TableOfContents = () => {
                 <Bookmark size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
                 <p style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '8px' }}>No content detected</p>
                 <p style={{ fontSize: '0.75rem', opacity: 0.6, textAlign: 'center', marginBottom: '24px' }}>
-                    Auto-scan failed to identify a TOC. Please point us to the right page.
+                    We couldn't find a built-in Table of Contents.
                 </p>
+
+                <button
+                    onClick={() => triggerAutoTOCScan(pdfDocument)}
+                    style={{
+                        width: '100%',
+                        marginBottom: '16px',
+                        padding: '10px',
+                        background: 'linear-gradient(135deg, var(--accent-color), #a855f7)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                    }}
+                >
+                    ✨ Smart AI Scan
+                </button>
+
                 <div style={{ width: '100%' }}>
                     {renderManualInput()}
                 </div>
