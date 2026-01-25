@@ -899,7 +899,7 @@ export const convertHandwritingToTyped = async (base64Image, isFastMode = false)
         prompt = `You are a high-speed "Handwriting to Markdown" engine.
     
     Task: Convert this handwritten page to Markdown IMMEDIATELY.
-    Priority: SPEED (~2 seconds target).
+    Priority: SPEED (~3 seconds target).
     
     Rules:
     1. Transcribe text exactly as seen (OCR).
@@ -926,6 +926,6 @@ export const convertHandwritingToTyped = async (base64Image, isFastMode = false)
     }
 
     // Use Flash model for speed if requested
-    // "gemini-1.5-flash" is typically the fastest vision model available
-    return callAIVisionFunc(prompt, base64Image, isFastMode ? "gemini-1.5-flash" : "gemini-3-flash-preview");
+    // "gemini-1.5-flash" is typically the fastest, but "gemini-3-preview" requested for Blitz
+    return callAIVisionFunc(prompt, base64Image, isFastMode ? "gemini-3-preview" : "gemini-3-flash-preview");
 };
