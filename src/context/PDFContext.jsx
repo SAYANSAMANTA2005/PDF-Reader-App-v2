@@ -823,6 +823,7 @@ export const PDFProvider = ({ children }) => {
         audioActiveInternetTrack, setAudioActiveInternetTrack,
         audioContextRef, audioNodesRef, internetAudioRef,
         getPageText, getPageTextAndMap,
+        triggerAutoTOCScan,
         ttsHighlightItemIndex, setTtsHighlightItemIndex,
         ttsTextMap
     };

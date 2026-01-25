@@ -101,7 +101,20 @@ const callAIVisionFunc = async (prompt, base64Image, modelName = "gemini-3-flash
             lastError = error;
             console.error(`Vision API Key ${i + 1} failed:`, error.message);
 
-            // AGGRESSIVE FALLBACK
+            // 404 FALLBACK: Try more stable/older models if the specific one is missing
+            if (error.message.includes("404") || error.message.includes("not found")) {
+                let fallbackModel = "";
+                if (modelName === "gemini-3-flash-preview") fallbackModel = "gemini-3-pro-preview";
+                else if (modelName === "gemini-3-pro-preview") fallbackModel = "gemini-1.5-flash";
+                else if (modelName === "gemini-1.5-flash") fallbackModel = "gemini-1.5-pro";
+
+                if (fallbackModel) {
+                    console.log(`🔄 Model ${modelName} not found. Trying fallback: ${fallbackModel}...`);
+                    return callAIVisionFunc(prompt, base64Image, fallbackModel);
+                }
+            }
+
+            // AGGRESSIVE KEY ROTATION
             if (attempt < keys.length - 1) {
                 const nextKey = (i + 1) % keys.length;
                 console.warn(`🔄 Vision Error with Key ${i + 1}. Rotating to Key ${nextKey + 1}...`);
@@ -926,6 +939,6 @@ export const convertHandwritingToTyped = async (base64Image, isFastMode = false)
     }
 
     // Use Flash model for speed if requested
-    // "gemini-1.5-flash" is typically the fastest, but "gemini-3-preview" requested for Blitz
-    return callAIVisionFunc(prompt, base64Image, isFastMode ? "gemini-3-preview" : "gemini-3-flash-preview");
+    // "gemini-3-flash-preview" is the 3-series Flash equivalent
+    return callAIVisionFunc(prompt, base64Image, isFastMode ? "gemini-3-flash-preview" : "gemini-3-pro-preview");
 };
