@@ -18,6 +18,7 @@ import ProStore from './ProStore';
 import AmbientSoundPlayer from './AmbientSoundPlayer';
 import TableOfContents from './TableOfContents';
 import HandwritingPanel from './HandwritingPanel';
+import ProductionEditingToolsPanel from './ProductionEditingToolsPanel';
 import {
     Grid,
     List,
@@ -35,7 +36,8 @@ import {
     TrendingUp,
     Diamond,
     Music,
-    PenTool
+    PenTool,
+    Edit
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -77,6 +79,7 @@ const Sidebar = () => {
         { id: 'workspace', icon: <Layers size={16} />, label: 'Pro' },
         { id: 'store', icon: <Diamond size={16} className={isPremium ? "text-yellow-500" : "text-accent"} />, label: isPremium ? 'Elite' : 'Upgrade' },
         { id: 'handwriting', icon: <PenTool size={16} />, label: 'Digitize' },
+        { id: 'edit', icon: <Edit size={16} />, label: 'Edit' },
     ];
 
     return (
@@ -148,6 +151,8 @@ const Sidebar = () => {
                 {activeSidebarTab === 'store' && <ProStore />}
                 {activeSidebarTab === 'bookmarks' && <TableOfContents />}
                 {activeSidebarTab === 'handwriting' && <HandwritingPanel />}
+                {activeSidebarTab === 'edit' && <ProductionEditingToolsPanel />}
+
             </div>
 
 

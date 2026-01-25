@@ -79,15 +79,51 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
         if (!isDrawing) return;
         setIsDrawing(false);
 
-
         if (currentPath.length > 0) {
-            const newAnnotation = {
-                type: annotationMode === 'highlight' ? 'highlight' : 'draw',
-                color: annotationColor, // Use the current active color from palette
-                opacity: annotationMode === 'highlight' ? 0.4 : 1,
-                strokeWidth: annotationMode === 'highlight' ? highlightThickness : brushThickness,
-                points: currentPath
-            };
+            let newAnnotation;
+
+            // Handle different annotation modes
+            if (annotationMode === 'shape') {
+                // For shapes, treat first and last points as bounding box
+                const startPoint = currentPath[0];
+                const endPoint = currentPath[currentPath.length - 1];
+                newAnnotation = {
+                    type: 'shape',
+                    shapeType: window.selectedShape || 'rectangle',
+                    color: annotationColor,
+                    opacity: 0.8,
+                    strokeWidth: brushThickness,
+                    points: [startPoint, endPoint] // Just start and end for shapes
+                };
+            } else if (annotationMode === 'text') {
+                // Text placement point
+                const point = currentPath[0];
+                newAnnotation = {
+                    type: 'text',
+                    color: annotationColor,
+                    text: window.textToAdd || 'Text',
+                    fontSize: 16,
+                    points: [point]
+                };
+            } else if (annotationMode === 'stamp') {
+                // Stamp placement
+                const point = currentPath[0];
+                newAnnotation = {
+                    type: 'stamp',
+                    stampText: window.selectedStamp || 'APPROVED',
+                    color: '#ff0000',
+                    points: [point]
+                };
+            } else {
+                // Regular draw/highlight
+                newAnnotation = {
+                    type: annotationMode === 'highlight' ? 'highlight' : 'draw',
+                    color: annotationColor,
+                    opacity: annotationMode === 'highlight' ? 0.4 : 1,
+                    strokeWidth: annotationMode === 'highlight' ? highlightThickness : brushThickness,
+                    points: currentPath
+                };
+            }
 
             addAnnotation(pageNum, newAnnotation);
             setCurrentPath([]);
@@ -130,8 +166,22 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                 height={height}
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
             >
+                {/* Arrow marker definition */}
+                <defs>
+                    <marker
+                        id="arrowhead"
+                        markerWidth="10"
+                        markerHeight="10"
+                        refX="9"
+                        refY="3"
+                        orient="auto"
+                    >
+                        <polygon points="0 0, 10 3, 0 6" fill={annotationColor} />
+                    </marker>
+                </defs>
                 {/* Render Existing Annotations */}
                 {pageAnnotations.map((ann, idx) => {
+                    // Image annotations
                     if (ann.type === 'image') {
                         return (
                             <image
@@ -157,28 +207,151 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                             />
                         );
                     }
-                    return (
-                        <path
-                            key={ann.id || idx}
-                            d={pointsToPath(ann.points)}
-                            stroke={ann.color}
-                            strokeWidth={ann.strokeWidth || 3}
-                            fill="none"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            opacity={ann.opacity || 1}
-                            onClick={() => handleErase(idx)}
-                            onMouseEnter={() => {
-                                if (isDrawing && annotationMode === 'erase') {
-                                    handleErase(idx);
-                                }
-                            }}
-                            style={{
-                                cursor: annotationMode === 'erase' ? 'pointer' : 'inherit',
-                                pointerEvents: annotationMode === 'erase' ? 'auto' : 'none'
-                            }}
-                        />
-                    );
+
+                    // Shape annotations
+                    if (ann.type === 'shape' && ann.points && ann.points.length >= 2) {
+                        const start = ann.points[0];
+                        const end = ann.points[1];
+                        const x1 = start.x * width;
+                        const y1 = start.y * height;
+                        const x2 = end.x * width;
+                        const y2 = end.y * height;
+                        const w = Math.abs(x2 - x1);
+                        const h = Math.abs(y2 - y1);
+
+                        if (ann.shapeType === 'rectangle') {
+                            return (
+                                <rect
+                                    key={ann.id || idx}
+                                    x={Math.min(x1, x2)}
+                                    y={Math.min(y1, y2)}
+                                    width={w}
+                                    height={h}
+                                    stroke={ann.color}
+                                    strokeWidth={ann.strokeWidth || 2}
+                                    fill="none"
+                                    opacity={ann.opacity || 0.8}
+                                    onClick={() => handleErase(idx)}
+                                    style={{ cursor: annotationMode === 'erase' ? 'pointer' : 'inherit' }}
+                                />
+                            );
+                        } else if (ann.shapeType === 'circle') {
+                            const cx = (x1 + x2) / 2;
+                            const cy = (y1 + y2) / 2;
+                            const rx = w / 2;
+                            const ry = h / 2;
+                            return (
+                                <ellipse
+                                    key={ann.id || idx}
+                                    cx={cx}
+                                    cy={cy}
+                                    rx={rx}
+                                    ry={ry}
+                                    stroke={ann.color}
+                                    strokeWidth={ann.strokeWidth || 2}
+                                    fill="none"
+                                    opacity={ann.opacity || 0.8}
+                                    onClick={() => handleErase(idx)}
+                                    style={{ cursor: annotationMode === 'erase' ? 'pointer' : 'inherit' }}
+                                />
+                            );
+                        } else if (ann.shapeType === 'arrow' || ann.shapeType === 'line') {
+                            return (
+                                <line
+                                    key={ann.id || idx}
+                                    x1={x1}
+                                    y1={y1}
+                                    x2={x2}
+                                    y2={y2}
+                                    stroke={ann.color}
+                                    strokeWidth={ann.strokeWidth || 2}
+                                    markerEnd={ann.shapeType === 'arrow' ? 'url(#arrowhead)' : undefined}
+                                    opacity={ann.opacity || 0.8}
+                                    onClick={() => handleErase(idx)}
+                                    style={{ cursor: annotationMode === 'erase' ? 'pointer' : 'inherit' }}
+                                />
+                            );
+                        }
+                    }
+
+                    // Text annotations
+                    if (ann.type === 'text' && ann.points && ann.points.length > 0) {
+                        const point = ann.points[0];
+                        return (
+                            <text
+                                key={ann.id || idx}
+                                x={point.x * width}
+                                y={point.y * height}
+                                fill={ann.color}
+                                fontSize={ann.fontSize || 16}
+                                fontWeight="600"
+                                onClick={() => handleErase(idx)}
+                                style={{ cursor: annotationMode === 'erase' ? 'pointer' : 'default' }}
+                            >
+                                {ann.text || 'Text'}
+                            </text>
+                        );
+                    }
+
+                    // Stamp annotations
+                    if (ann.type === 'stamp' && ann.points && ann.points.length > 0) {
+                        const point = ann.points[0];
+                        return (
+                            <g key={ann.id || idx} onClick={() => handleErase(idx)}>
+                                <rect
+                                    x={point.x * width - 40}
+                                    y={point.y * height - 15}
+                                    width="80"
+                                    height="30"
+                                    stroke={ann.color || '#ff0000'}
+                                    strokeWidth="3"
+                                    fill="none"
+                                    rx="4"
+                                    style={{ cursor: annotationMode === 'erase' ? 'pointer' : 'default' }}
+                                />
+                                <text
+                                    x={point.x * width}
+                                    y={point.y * height + 5}
+                                    fill={ann.color || '#ff0000'}
+                                    fontSize="12"
+                                    fontWeight="900"
+                                    textAnchor="middle"
+                                    letterSpacing="1"
+                                    style={{ cursor: annotationMode === 'erase' ? 'pointer' : 'default' }}
+                                >
+                                    {ann.stampText || 'STAMP'}
+                                </text>
+                            </g>
+                        );
+                    }
+
+                    // Regular draw/highlight paths
+                    if (ann.points) {
+                        return (
+                            <path
+                                key={ann.id || idx}
+                                d={pointsToPath(ann.points)}
+                                stroke={ann.color}
+                                strokeWidth={ann.strokeWidth || 3}
+                                fill="none"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                opacity={ann.opacity || 1}
+                                onClick={() => handleErase(idx)}
+                                onMouseEnter={() => {
+                                    if (isDrawing && annotationMode === 'erase') {
+                                        handleErase(idx);
+                                    }
+                                }}
+                                style={{
+                                    cursor: annotationMode === 'erase' ? 'pointer' : 'inherit',
+                                    pointerEvents: annotationMode === 'erase' ? 'auto' : 'none'
+                                }}
+                            />
+                        );
+                    }
+
+                    return null;
                 })}
 
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { usePDF } from '../context/PDFContext';
 import * as pdfjsLib from 'pdfjs-dist';
-import AnnotationLayer from './AnnotationLayer';
+import EnhancedAnnotationLayer from './EnhancedAnnotationLayer';
 import ActiveRecallOverlay from './ActiveRecallOverlay';
 import { PDFVirtualizer, LRUPageCache, AdaptiveQualityRenderer } from '../utils/pdfVirtualizer';
 import { PageRenderScheduler } from '../utils/pdfPageScheduler';
@@ -634,13 +634,13 @@ const PDFPage = React.memo(({
                 style.id = 'tts-highlight-style';
                 style.innerHTML = `
                     .tts-reading-highlight {
-                        background-color: #ccff90 !important; /* Light Green */
+                        background-color: #411cfcff !important; /* Light Green */
                         color: black !important;
-                        outline: 2px solid #76ff03;
+                        outline: 2px solid #1509faff;
                         z-index: 10;
                         mix-blend-mode: multiply;
                         border-radius: 3px;
-                        box-shadow: 0 0 8px rgba(118, 255, 3, 0.5);
+                        box-shadow: 0 0 8px rgba(6, 17, 239, 0.5);
                     }
                 `;
                 document.head.appendChild(style);
@@ -721,7 +721,7 @@ const PDFPage = React.memo(({
                     </div>
                 )}
             </div>
-            <AnnotationLayer width={dimensions.width} height={dimensions.height} scale={scale} pageNum={pageNum} />
+            <EnhancedAnnotationLayer width={dimensions.width} height={dimensions.height} scale={scale} pageNum={pageNum} />
 
             {isActiveRecallMode && !isUnlocked && (
                 <ActiveRecallOverlay pageNum={pageNum} onReveal={() => setIsUnlocked(true)} />

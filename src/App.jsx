@@ -4,10 +4,14 @@ import Toolbar from './components/Toolbar';
 import Sidebar from './components/Sidebar';
 import PDFViewer from './components/PDFViewer';
 import { ToastProvider } from './components/ToastNotification';
+import { useEditingKeyboardShortcuts } from './hooks/useEditingKeyboardShortcuts';
 import { Upload, FileText, AlertCircle, XCircle, Zap } from 'lucide-react';
 import { isMobile, pickPDFFile } from './utils/mobileFilePicker';
 
 const App = () => {
+    // Enable editing keyboard shortcuts (Ctrl+Z, Ctrl+Y, etc.)
+    useEditingKeyboardShortcuts();
+
     const {
         pdfDocument, loadPDF, isSidebarOpen, setIsSidebarOpen,
         isLoading, error, cognitiveLoad, setCognitiveLoad,

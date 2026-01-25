@@ -549,12 +549,12 @@ export const PDFProvider = ({ children }) => {
                     } else {
                         // FALLBACK: Generate TOC from Layout
                         // triggerAutoTOCScan(pdf); // DISABLED: Now manual
-                        toast.info("No Table of Contents found. You can scan for it AI in the 'Content' tab.", { duration: 5000 });
+                        console.info("No Table of Contents found. You can scan for it AI in the 'Content' tab.");
                     }
                 } else {
                     // FALLBACK: Generate TOC from Layout (Same logic)
                     // triggerAutoTOCScan(pdf); // DISABLED: Now manual
-                    toast.info("No Table of Contents found. You can scan for it AI in the 'Content' tab.", { duration: 5000 });
+                    console.info("No Table of Contents found. You can scan for it AI in the 'Content' tab.");
                 }
             } catch (outlineErr) {
                 console.warn("Failed to extract outline:", outlineErr);
