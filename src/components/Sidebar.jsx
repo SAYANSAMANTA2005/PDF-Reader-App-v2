@@ -17,6 +17,7 @@ import EcosystemPanel from './EcosystemPanel';
 import ProStore from './ProStore';
 import AmbientSoundPlayer from './AmbientSoundPlayer';
 import TableOfContents from './TableOfContents';
+import HomeToolsPanel from './HomeToolsPanel';
 import HandwritingPanel from './HandwritingPanel';
 import ProductionEditingToolsPanel from './ProductionEditingToolsPanel';
 import {
@@ -37,7 +38,8 @@ import {
     Diamond,
     Music,
     PenTool,
-    Edit
+    Edit,
+    Home
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -66,6 +68,7 @@ const Sidebar = () => {
     };
 
     const tabs = [
+        { id: 'home', icon: <Home size={16} />, label: 'Home' },
         { id: 'tabmanager', icon: <Layout size={16} />, label: 'Files' },
         { id: 'bookmarks', icon: <List size={16} />, label: 'Content' },
         { id: 'thumbnails', icon: <Grid size={16} />, label: 'Nodes' },
@@ -138,6 +141,7 @@ const Sidebar = () => {
                 <div style={{ display: activeSidebarTab === 'music' ? 'block' : 'none', flexShrink: 0 }}>
                     <AmbientSoundPlayer />
                 </div>
+                {activeSidebarTab === 'home' && <HomeToolsPanel />}
                 {activeSidebarTab === 'tabmanager' && <TabManager />}
                 {activeSidebarTab === 'thumbnails' && <Thumbnails />}
                 {activeSidebarTab === 'summary' && <SummaryPanel />}

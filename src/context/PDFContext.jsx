@@ -43,8 +43,9 @@ export const PDFProvider = ({ children }) => {
     const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
     const [annotationMode, setAnnotationMode] = useState('none'); // 'none', 'highlight', 'draw', 'text'
     const [annotations, setAnnotations] = useState({}); // { [pageNum]: [ { type, ...data } ] }
-    const [annotationColor, setAnnotationColor] = useState('#ff0000'); // Default to red as in many editors, or yellow for highlight
+    const [annotationColor, setAnnotationColor] = useState('#ff0000');
     const [brushThickness, setBrushThickness] = useState(3);
+    const [textFontSize, setTextFontSize] = useState(16);
     const [highlightThickness, setHighlightThickness] = useState(20);
     const [eraserThickness, setEraserThickness] = useState(20);
     const [isTwoPageMode, setIsTwoPageMode] = useState(false);
@@ -127,6 +128,13 @@ export const PDFProvider = ({ children }) => {
     // TTS Highlighting State
     const [ttsHighlightItemIndex, setTtsHighlightItemIndex] = useState(-1);
     const [ttsTextMap, setTtsTextMap] = useState([]); // Map of current page text items
+
+    // Home Tab Modal States
+    const [isPdfToImageOpen, setIsPdfToImageOpen] = useState(false);
+    const [isSplitMergeOpen, setIsSplitMergeOpen] = useState(false);
+    const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
+    const [isSnipMode, setIsSnipMode] = useState(false);
+    const [isCommentPanelOpen, setIsCommentPanelOpen] = useState(false);
 
     useEffect(() => {
         if (!isTtsSelecting) {
@@ -737,6 +745,8 @@ export const PDFProvider = ({ children }) => {
         setAnnotationColor,
         brushThickness,
         setBrushThickness,
+        textFontSize,
+        setTextFontSize,
         highlightThickness,
         setHighlightThickness,
         eraserThickness,
@@ -825,7 +835,14 @@ export const PDFProvider = ({ children }) => {
         getPageText, getPageTextAndMap,
         triggerAutoTOCScan,
         ttsHighlightItemIndex, setTtsHighlightItemIndex,
-        ttsTextMap
+        ttsTextMap,
+
+        // Home Tab Modal States
+        isPdfToImageOpen, setIsPdfToImageOpen,
+        isSplitMergeOpen, setIsSplitMergeOpen,
+        isFindReplaceOpen, setIsFindReplaceOpen,
+        isSnipMode, setIsSnipMode,
+        isCommentPanelOpen, setIsCommentPanelOpen
     };
 
     async function handleDownload() {

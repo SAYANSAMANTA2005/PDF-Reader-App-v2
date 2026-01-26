@@ -453,6 +453,80 @@ const ProductionEditingToolsPanel = () => {
                 </div>
             )}
 
+            {annotationMode === 'video' && (
+                <div className="property-panel">
+                    <h4>Add Video</h4>
+                    <div className="property-tabs" style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                        <button
+                            className={`tab-btn ${!window.videoUploadMode ? 'active' : ''}`}
+                            onClick={() => { window.videoUploadMode = false; setTextInput(textInput); /* force rerender */ }}
+                            style={{ flex: 1, padding: '6px', fontSize: '11px', borderRadius: '4px', border: window.videoUploadMode ? '1px solid var(--border-color)' : '1px solid var(--accent-color)', background: !window.videoUploadMode ? 'var(--accent-color)' : 'transparent', color: !window.videoUploadMode ? 'white' : 'var(--text-primary)' }}
+                        >
+                            🔗 Link
+                        </button>
+                        <button
+                            className={`tab-btn ${window.videoUploadMode ? 'active' : ''}`}
+                            onClick={() => { window.videoUploadMode = true; setTextInput(textInput); }}
+                            style={{ flex: 1, padding: '6px', fontSize: '11px', borderRadius: '4px', border: !window.videoUploadMode ? '1px solid var(--border-color)' : '1px solid var(--accent-color)', background: window.videoUploadMode ? 'var(--accent-color)' : 'transparent', color: window.videoUploadMode ? 'white' : 'var(--text-primary)' }}
+                        >
+                            📂 Upload
+                        </button>
+                    </div>
+
+                    {!window.videoUploadMode ? (
+                        <div className="property-row">
+                            <input
+                                type="url"
+                                placeholder="https://youtube.com/..."
+                                value={linkUrl}
+                                onChange={(e) => {
+                                    setLinkUrl(e.target.value);
+                                    window.videoUrl = e.target.value;
+                                }}
+                                className="text-input-field"
+                            />
+                        </div>
+                    ) : (
+                        <div className="property-row">
+                            <button
+                                onClick={() => {
+                                    const input = document.createElement('input');
+                                    input.type = 'file';
+                                    input.accept = 'video/*';
+                                    input.onchange = (e) => {
+                                        const file = e.target.files[0];
+                                        if (file) {
+                                            const url = URL.createObjectURL(file);
+                                            window.videoFileUrl = url;
+                                            window.videoFileName = file.name;
+                                            setTextInput(file.name); // Just to force update UI or show name
+                                        }
+                                    };
+                                    input.click();
+                                }}
+                                className="upload-image-btn"
+                            >
+                                <Video size={18} />
+                                {window.videoFileName ? window.videoFileName : 'Choose Video File'}
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="property-row" style={{ marginTop: '12px', display: 'flex', gap: '12px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
+                            <input type="checkbox" onChange={(e) => window.videoAutoplay = e.target.checked} />
+                            Autoplay
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
+                            <input type="checkbox" onChange={(e) => window.videoLoop = e.target.checked} />
+                            Loop
+                        </label>
+                    </div>
+
+                    <p className="help-text">Click on PDF to place video player</p>
+                </div>
+            )}
+
             {/* Instructions */}
             <div className="editing-instructions">
                 <p><strong>Active:</strong> {

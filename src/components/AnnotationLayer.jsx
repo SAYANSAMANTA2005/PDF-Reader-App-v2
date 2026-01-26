@@ -10,6 +10,7 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
         addImageAnnotation,
         updateAnnotation,
         annotationColor,
+        textFontSize,
 
         brushThickness,
         highlightThickness,
@@ -21,7 +22,17 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
     const [currentPath, setCurrentPath] = useState([]);
     const [draggingId, setDraggingId] = useState(null);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const [pendingTextPos, setPendingTextPos] = useState(null);
+    const [editingId, setEditingId] = useState(null);
+    const [editText, setEditText] = useState('');
     const svgRef = useRef(null);
+    const textInputRef = useRef(null);
+
+    useEffect(() => {
+        if (pendingTextPos && textInputRef.current) {
+            textInputRef.current.focus();
+        }
+    }, [pendingTextPos]);
 
 
     // Get annotations for this page
@@ -96,15 +107,12 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                     points: [startPoint, endPoint] // Just start and end for shapes
                 };
             } else if (annotationMode === 'text') {
-                // Text placement point
+                // Instead of adding immediately, open the input
                 const point = currentPath[0];
-                newAnnotation = {
-                    type: 'text',
-                    color: annotationColor,
-                    text: window.textToAdd || 'Text',
-                    fontSize: 16,
-                    points: [point]
-                };
+                setPendingTextPos(point);
+                setEditText('');
+                setIsDrawing(false);
+                return;
             } else if (annotationMode === 'stamp') {
                 // Stamp placement
                 const point = currentPath[0];
@@ -113,6 +121,19 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                     stampText: window.selectedStamp || 'APPROVED',
                     color: '#ff0000',
                     points: [point]
+                };
+            } else if (annotationMode === 'video') {
+                // Video placement
+                const point = currentPath[0];
+                newAnnotation = {
+                    type: 'video',
+                    sourceType: window.videoUploadMode ? 'file' : 'url',
+                    src: window.videoUploadMode ? window.videoFileUrl : window.videoUrl,
+                    autoplay: window.videoAutoplay,
+                    loop: window.videoLoop,
+                    points: [point],
+                    width: 0.4, // Default relative width
+                    height: 0.25 // Default relative height
                 };
             } else {
                 // Regular draw/highlight
@@ -125,9 +146,28 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                 };
             }
 
-            addAnnotation(pageNum, newAnnotation);
+            if (newAnnotation) addAnnotation(pageNum, newAnnotation);
             setCurrentPath([]);
         }
+    };
+
+    const handleTextSubmit = () => {
+        if (editText.trim()) {
+            if (editingId) {
+                updateAnnotation(pageNum, editingId, { text: editText });
+            } else {
+                addAnnotation(pageNum, {
+                    type: 'text',
+                    color: annotationColor,
+                    text: editText,
+                    fontSize: textFontSize,
+                    points: [pendingTextPos]
+                });
+            }
+        }
+        setPendingTextPos(null);
+        setEditingId(null);
+        setEditText('');
     };
 
     // Helper to Convert path points to parsed SVG path string
@@ -277,6 +317,8 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                     // Text annotations
                     if (ann.type === 'text' && ann.points && ann.points.length > 0) {
                         const point = ann.points[0];
+                        if (editingId === ann.id) return null; // Don't render text if we're editing it in HTML layer
+
                         return (
                             <text
                                 key={ann.id || idx}
@@ -285,8 +327,32 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                                 fill={ann.color}
                                 fontSize={ann.fontSize || 16}
                                 fontWeight="600"
-                                onClick={() => handleErase(idx)}
-                                style={{ cursor: annotationMode === 'erase' ? 'pointer' : 'default' }}
+                                onClick={(e) => {
+                                    if (annotationMode === 'erase') {
+                                        handleErase(idx);
+                                    }
+                                }}
+                                onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingId(ann.id);
+                                    setEditText(ann.text);
+                                    setPendingTextPos(point);
+                                }}
+                                onMouseDown={(e) => {
+                                    if (annotationMode === 'none' || annotationMode === 'select') {
+                                        e.stopPropagation();
+                                        const coords = getCoordinates(e);
+                                        setDraggingId(ann.id);
+                                        setDragOffset({
+                                            x: coords.x - point.x,
+                                            y: coords.y - point.y
+                                        });
+                                    }
+                                }}
+                                style={{
+                                    cursor: annotationMode === 'erase' ? 'pointer' : (annotationMode === 'none' ? 'grab' : 'default'),
+                                    userSelect: 'none'
+                                }}
                             >
                                 {ann.text || 'Text'}
                             </text>
@@ -393,6 +459,115 @@ const AnnotationLayer = ({ width, height, scale, pageNum }) => {
                     />
                 )}
             </svg>
+
+            {/* Render HTML Content Overlays (Video) */}
+            {pageAnnotations.map((ann, idx) => {
+                if (ann.type === 'video' && ann.points && ann.points.length > 0) {
+                    const point = ann.points[0];
+                    const w = (ann.width || 0.4) * width;
+                    const h = (ann.height || 0.25) * height;
+                    const x = point.x * width;
+                    const y = point.y * height;
+
+                    return (
+                        <div
+                            key={ann.id || idx}
+                            style={{
+                                position: 'absolute',
+                                left: x,
+                                top: y,
+                                width: w,
+                                height: h,
+                                zIndex: 50,
+                                background: '#000',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                borderRadius: '8px',
+                                overflow: 'hidden'
+                            }}
+                        >
+                            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                {ann.src && (ann.src.includes('youtube.com') || ann.src.includes('youtu.be')) ? (
+                                    <iframe
+                                        src={`https://www.youtube.com/embed/${ann.src.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1]}?autoplay=${ann.autoplay ? 1 : 0}&loop=${ann.loop ? 1 : 0}`}
+                                        style={{ width: '100%', height: '100%', border: 'none' }}
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                    />
+                                ) : (
+                                    <video
+                                        src={ann.src}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        controls
+                                        autoPlay={ann.autoplay}
+                                        loop={ann.loop}
+                                    />
+                                )}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleErase(idx); }}
+                                    style={{
+                                        position: 'absolute',
+                                        top: '0px',
+                                        right: '0px',
+                                        background: 'red',
+                                        color: 'white',
+                                        borderBottomLeftRadius: '4px',
+                                        width: '24px',
+                                        height: '24px',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        display: annotationMode === 'erase' ? 'flex' : 'none',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '14px',
+                                        fontWeight: 'bold',
+                                        zIndex: 60
+                                    }}
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+                    );
+                }
+                return null;
+            })}
+            {/* Pending Text Input */}
+            {pendingTextPos && (
+                <textarea
+                    ref={textInputRef}
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onBlur={handleTextSubmit}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleTextSubmit();
+                        }
+                        if (e.key === 'Escape') {
+                            setPendingTextPos(null);
+                            setEditingId(null);
+                        }
+                    }}
+                    style={{
+                        position: 'absolute',
+                        left: `${pendingTextPos.x * width}px`,
+                        top: `${pendingTextPos.y * height - 10}px`,
+                        minWidth: '100px',
+                        background: 'white',
+                        border: `2px solid ${annotationColor}`,
+                        borderRadius: '4px',
+                        color: annotationColor,
+                        fontSize: `${textFontSize}px`,
+                        fontWeight: '600',
+                        padding: '4px',
+                        zIndex: 100,
+                        outline: 'none',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                        fontFamily: 'inherit',
+                        resize: 'both'
+                    }}
+                />
+            )}
         </div>
     );
 };

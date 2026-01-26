@@ -7,6 +7,11 @@ import { ToastProvider } from './components/ToastNotification';
 import { useEditingKeyboardShortcuts } from './hooks/useEditingKeyboardShortcuts';
 import { Upload, FileText, AlertCircle, XCircle, Zap } from 'lucide-react';
 import { isMobile, pickPDFFile } from './utils/mobileFilePicker';
+import PdfToImageModal from './components/PdfToImageModal';
+import SplitMergeModal from './components/SplitMergeModal';
+import FindReplaceModal from './components/FindReplaceModal';
+import SnipOverlay from './components/SnipOverlay';
+import CommentPanel from './components/CommentPanel';
 
 const App = () => {
     // Enable editing keyboard shortcuts (Ctrl+Z, Ctrl+Y, etc.)
@@ -15,7 +20,11 @@ const App = () => {
     const {
         pdfDocument, loadPDF, isSidebarOpen, setIsSidebarOpen,
         isLoading, error, cognitiveLoad, setCognitiveLoad,
-        setActiveSidebarTab
+        setActiveSidebarTab,
+        isPdfToImageOpen, setIsPdfToImageOpen,
+        isSplitMergeOpen, setIsSplitMergeOpen,
+        isFindReplaceOpen, setIsFindReplaceOpen,
+        isCommentPanelOpen, setIsCommentPanelOpen
     } = usePDF();
     const [isDragging, setIsDragging] = useState(false);
     const isOnMobile = isMobile();
@@ -167,6 +176,18 @@ const App = () => {
                             </div>
                             <span className="text-[8px] text-secondary font-bold uppercase tracking-widest">Cognitive Load</span>
                         </div>
+                    </div>
+                )}
+
+                {/* Home Tab Production Modals */}
+                <PdfToImageModal isOpen={isPdfToImageOpen} onClose={() => setIsPdfToImageOpen(false)} />
+                <SplitMergeModal isOpen={isSplitMergeOpen} onClose={() => setIsSplitMergeOpen(false)} />
+                <FindReplaceModal isOpen={isFindReplaceOpen} onClose={() => setIsFindReplaceOpen(false)} />
+                <SnipOverlay />
+
+                {isCommentPanelOpen && (
+                    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '350px', zIndex: 1005, boxShadow: '-5px 0 25px rgba(0,0,0,0.1)' }}>
+                        <CommentPanel />
                     </div>
                 )}
             </div>

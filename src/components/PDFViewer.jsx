@@ -696,7 +696,7 @@ const PDFPage = React.memo(({
                     Rendering Page {pageNum}...
                 </div>
             )}
-            <canvas ref={canvasRef} />
+            <canvas ref={canvasRef} className="pdf-page-canvas" />
             <div
                 className="textLayer"
                 ref={textLayerRef}

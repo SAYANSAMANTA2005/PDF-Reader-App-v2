@@ -52,15 +52,24 @@ async function drawAnnotation(pdfDoc, page, annotation, pageWidth, pageHeight, f
 
     switch (type) {
         case ANNOTATION_TYPES.TEXT:
+        case 'text':
             drawTextAnnotation(page, annotation, pageWidth, pageHeight, font);
             break;
 
         case ANNOTATION_TYPES.IMAGE:
+        case 'image':
             await drawImageAnnotation(pdfDoc, page, annotation, pageWidth, pageHeight);
             break;
 
         case ANNOTATION_TYPES.SHAPE_RECT:
-            drawRectangleAnnotation(page, annotation, pageWidth, pageHeight);
+        case 'shape':
+            if (annotation.shapeType === 'rectangle') {
+                drawRectangleAnnotation(page, annotation, pageWidth, pageHeight);
+            } else if (annotation.shapeType === 'circle') {
+                drawCircleAnnotation(page, annotation, pageWidth, pageHeight);
+            } else if (annotation.shapeType === 'arrow' || annotation.shapeType === 'line') {
+                drawLineAnnotation(page, annotation, pageWidth, pageHeight);
+            }
             break;
 
         case ANNOTATION_TYPES.SHAPE_CIRCLE:
@@ -74,167 +83,183 @@ async function drawAnnotation(pdfDoc, page, annotation, pageWidth, pageHeight, f
 
         case ANNOTATION_TYPES.FREEHAND:
         case ANNOTATION_TYPES.HIGHLIGHT:
+        case 'draw':
+        case 'highlight':
             drawFreehandAnnotation(page, annotation, pageWidth, pageHeight);
             break;
 
         case ANNOTATION_TYPES.STAMP:
+        case 'stamp':
             drawStampAnnotation(page, annotation, pageWidth, pageHeight, boldFont);
             break;
 
-        // Note: Links, Audio, Video, Bookmarks are handled differently
-        // They require PDF interactive features
+        case 'video':
+            drawVideoPlaceholder(page, annotation, pageWidth, pageHeight, font);
+            break;
     }
+}
+
+/**
+ * Helper to get bounds from annotation (handles both x/y and points)
+ */
+function getBounds(annotation, pageWidth, pageHeight) {
+    let x, y, width, height;
+
+    if (annotation.points && annotation.points.length >= 1) {
+        if (annotation.points.length >= 2) {
+            const p1 = annotation.points[0];
+            const p2 = annotation.points[1];
+            x = Math.min(p1.x, p2.x);
+            y = Math.min(p1.y, p2.y);
+            width = Math.abs(p2.x - p1.x);
+            height = Math.abs(p2.y - p1.y);
+        } else {
+            x = annotation.points[0].x;
+            y = annotation.points[0].y;
+            width = annotation.width || 0;
+            height = annotation.height || 0;
+        }
+    } else {
+        x = annotation.x;
+        y = annotation.y;
+        width = annotation.width;
+        height = annotation.height;
+    }
+    return { x, y, width, height };
 }
 
 /**
  * Draw text annotation
  */
-function drawTextAnnotation(page, annotation, pageWidth, pageHeight) {
-    const { x, y, width, height, text, fontSize = 14, color = '#000000', fontWeight } = annotation;
+/**
+ * Draw text annotation
+ */
+function drawTextAnnotation(page, annotation, pageWidth, pageHeight, font) {
+    const bounds = getBounds(annotation, pageWidth, pageHeight);
+    const { text, fontSize = 14, color = '#000000' } = annotation;
 
-    // Convert relative coordinates to absolute
-    const absX = x * pageWidth;
-    const absY = pageHeight - (y * pageHeight) - (height * pageHeight); // PDF coords are bottom-left origin
+    const absX = bounds.x * pageWidth;
+    const absY = pageHeight - (bounds.y * pageHeight) - (fontSize); // Text origin adjustment
 
-    // Parse color
     const [r, g, b] = hexToRgb(color);
 
-    page.drawText(text || '', {
-        x: absX,
-        y: absY,
-        size: fontSize,
-        color: rgb(r, g, b),
-        maxWidth: width * pageWidth
-    });
+    try {
+        page.drawText(text || '', {
+            x: absX,
+            y: absY,
+            size: fontSize,
+            font: font,
+            color: rgb(r, g, b),
+        });
+    } catch (e) { console.warn(e); }
 }
 
 /**
  * Draw image annotation
  */
 async function drawImageAnnotation(pdfDoc, page, annotation, pageWidth, pageHeight) {
-    const { x, y, width, height, src } = annotation;
+    const bounds = getBounds(annotation, pageWidth, pageHeight);
+    const { src } = annotation;
+
+    if (!src) return;
 
     try {
-        // Determine image type and embed
         let image;
-        if (src.startsWith('data:image/png')) {
-            const imageBytes = dataURLToBytes(src);
-            image = await pdfDoc.embedPng(imageBytes);
-        } else if (src.startsWith('data:image/jpg') || src.startsWith('data:image/jpeg')) {
-            const imageBytes = dataURLToBytes(src);
-            image = await pdfDoc.embedJpg(imageBytes);
-        } else {
-            console.warn('Unsupported image format:', src.substring(0, 30));
-            return;
-        }
+        if (src.startsWith('data:image/png')) await pdfDoc.embedPng(dataURLToBytes(src)).then(img => image = img);
+        else if (src.startsWith('data:image/jpg') || src.startsWith('data:image/jpeg')) await pdfDoc.embedJpg(dataURLToBytes(src)).then(img => image = img);
+        else return;
 
-        const absX = x * pageWidth;
-        const absY = pageHeight - (y * pageHeight) - (height * pageHeight);
-        const absWidth = width * pageWidth;
-        const absHeight = height * pageHeight;
+        const absX = bounds.x * pageWidth;
+        const absY = pageHeight - (bounds.y * pageHeight) - (bounds.height * pageHeight);
+        const absWidth = bounds.width * pageWidth;
+        const absHeight = bounds.height * pageHeight;
 
-        page.drawImage(image, {
-            x: absX,
-            y: absY,
-            width: absWidth,
-            height: absHeight
-        });
-    } catch (err) {
-        console.error('Failed to draw image annotation:', err);
-    }
+        page.drawImage(image, { x: absX, y: absY, width: absWidth, height: absHeight });
+    } catch (err) { console.error(err); }
 }
 
 /**
  * Draw rectangle annotation
  */
 function drawRectangleAnnotation(page, annotation, pageWidth, pageHeight) {
-    const { x, y, width, height, strokeColor = '#FF0000', fillColor, strokeWidth = 2, opacity = 1 } = annotation;
+    const bounds = getBounds(annotation, pageWidth, pageHeight);
+    const { strokeColor = '#FF0000', fillColor, strokeWidth = 2, opacity = 1 } = annotation;
 
-    const absX = x * pageWidth;
-    const absY = pageHeight - (y * pageHeight) - (height * pageHeight);
-    const absWidth = width * pageWidth;
-    const absHeight = height * pageHeight;
+    const absX = bounds.x * pageWidth;
+    const absY = pageHeight - (bounds.y * pageHeight) - (bounds.height * pageHeight);
+    const absWidth = bounds.width * pageWidth;
+    const absHeight = bounds.height * pageHeight;
 
     const [r, g, b] = hexToRgb(strokeColor);
 
     if (fillColor && fillColor !== 'transparent') {
         const [fr, fg, fb] = hexToRgb(fillColor);
         page.drawRectangle({
-            x: absX,
-            y: absY,
-            width: absWidth,
-            height: absHeight,
-            color: rgb(fr, fg, fb),
-            opacity: opacity * 0.3
+            x: absX, y: absY, width: absWidth, height: absHeight,
+            color: rgb(fr, fg, fb), opacity: opacity * 0.3
         });
     }
 
     page.drawRectangle({
-        x: absX,
-        y: absY,
-        width: absWidth,
-        height: absHeight,
-        borderColor: rgb(r, g, b),
-        borderWidth: strokeWidth,
-        opacity: opacity
+        x: absX, y: absY, width: absWidth, height: absHeight,
+        borderColor: rgb(r, g, b), borderWidth: strokeWidth, opacity: opacity
     });
 }
 
 /**
  * Draw circle annotation
  */
+/**
+ * Draw circle annotation
+ */
 function drawCircleAnnotation(page, annotation, pageWidth, pageHeight) {
-    const { x, y, width, height, strokeColor = '#FF0000', fillColor, strokeWidth = 2, opacity = 1 } = annotation;
+    const bounds = getBounds(annotation, pageWidth, pageHeight);
+    const { strokeColor = '#FF0000', fillColor, strokeWidth = 2, opacity = 1 } = annotation;
 
-    const centerX = x * pageWidth + (width * pageWidth) / 2;
-    const centerY = pageHeight - (y * pageHeight) - (height * pageHeight) / 2;
-    const radiusX = (width * pageWidth) / 2;
-    const radiusY = (height * pageHeight) / 2;
+    const centerX = bounds.x * pageWidth + (bounds.width * pageWidth) / 2;
+    const centerY = pageHeight - (bounds.y * pageHeight) - (bounds.height * pageHeight) / 2;
+    const radiusX = (bounds.width * pageWidth) / 2;
+    const radiusY = (bounds.height * pageHeight) / 2;
 
     const [r, g, b] = hexToRgb(strokeColor);
 
     if (fillColor && fillColor !== 'transparent') {
         const [fr, fg, fb] = hexToRgb(fillColor);
         page.drawEllipse({
-            x: centerX,
-            y: centerY,
-            xScale: radiusX,
-            yScale: radiusY,
-            color: rgb(fr, fg, fb),
-            opacity: opacity * 0.3
+            x: centerX, y: centerY, xScale: radiusX, yScale: radiusY,
+            color: rgb(fr, fg, fb), opacity: opacity * 0.3
         });
     }
 
     page.drawEllipse({
-        x: centerX,
-        y: centerY,
-        xScale: radiusX,
-        yScale: radiusY,
-        borderColor: rgb(r, g, b),
-        borderWidth: strokeWidth,
-        opacity: opacity
+        x: centerX, y: centerY, xScale: radiusX, yScale: radiusY,
+        borderColor: rgb(r, g, b), borderWidth: strokeWidth, opacity: opacity
     });
 }
 
 /**
  * Draw line annotation
  */
+/**
+ * Draw line annotation
+ */
 function drawLineAnnotation(page, annotation, pageWidth, pageHeight) {
-    const { x, y, x2, y2, strokeColor = '#FF0000', strokeWidth = 2, opacity = 1 } = annotation;
+    let x1, y1, x2, y2;
+    if (annotation.points && annotation.points.length >= 2) {
+        x1 = annotation.points[0].x; y1 = annotation.points[0].y;
+        x2 = annotation.points[1].x; y2 = annotation.points[1].y;
+    } else {
+        x1 = annotation.x; y1 = annotation.y;
+        x2 = annotation.x2; y2 = annotation.y2;
+    }
 
-    const absX1 = x * pageWidth;
-    const absY1 = pageHeight - (y * pageHeight);
-    const absX2 = x2 * pageWidth;
-    const absY2 = pageHeight - (y2 * pageHeight);
-
+    const { strokeColor = '#FF0000', strokeWidth = 2, opacity = 1 } = annotation;
     const [r, g, b] = hexToRgb(strokeColor);
 
     page.drawLine({
-        start: { x: absX1, y: absY1 },
-        end: { x: absX2, y: absY2 },
-        color: rgb(r, g, b),
-        thickness: strokeWidth,
-        opacity: opacity
+        start: { x: x1 * pageWidth, y: pageHeight - y1 * pageHeight },
+        end: { x: x2 * pageWidth, y: pageHeight - y2 * pageHeight },
+        color: rgb(r, g, b), thickness: strokeWidth, opacity: opacity
     });
 }
 
@@ -272,32 +297,54 @@ function drawFreehandAnnotation(page, annotation, pageWidth, pageHeight) {
 /**
  * Draw stamp annotation
  */
+/**
+ * Draw stamp annotation
+ */
 function drawStampAnnotation(page, annotation, pageWidth, pageHeight, font) {
-    const { x, y, width, height, stampText, color = '#FF0000' } = annotation;
+    const bounds = getBounds(annotation, pageWidth, pageHeight);
+    // Force standard stamp size if too small
+    const width = bounds.width < 0.05 ? 0.2 : bounds.width;
+    const height = bounds.height < 0.02 ? 0.05 : bounds.height;
 
-    const absX = x * pageWidth;
-    const absY = pageHeight - (y * pageHeight) - (height * pageHeight);
+    // Center logic
+    const absX = bounds.x * pageWidth - (width * pageWidth / 2);
+    const absY = pageHeight - (bounds.y * pageHeight) - (height * pageHeight / 2);
 
+    const { stampText, color = '#FF0000' } = annotation;
     const [r, g, b] = hexToRgb(color);
 
     // Draw stamp border
     page.drawRectangle({
-        x: absX,
-        y: absY,
-        width: width * pageWidth,
-        height: height * pageHeight,
-        borderColor: rgb(r, g, b),
-        borderWidth: 3
+        x: absX, y: absY, width: width * pageWidth, height: height * pageHeight,
+        borderColor: rgb(r, g, b), borderWidth: 3
     });
 
-    // Draw stamp text
     const fontSize = Math.min(24, (height * pageHeight) * 0.6);
     page.drawText(stampText || 'STAMP', {
-        x: absX + 10,
-        y: absY + (height * pageHeight) / 2 - fontSize / 2,
-        size: fontSize,
-        font: font,
-        color: rgb(r, g, b)
+        x: absX + 10, y: absY + 5,
+        size: fontSize, font: font, color: rgb(r, g, b)
+    });
+}
+
+function drawVideoPlaceholder(page, annotation, pageWidth, pageHeight, font) {
+    const bounds = getBounds(annotation, pageWidth, pageHeight);
+    let { width, height } = bounds;
+    if (!width) width = 0.4; if (!height) height = 0.25;
+
+    const absX = bounds.x * pageWidth;
+    const absY = pageHeight - (bounds.y * pageHeight) - (height * pageHeight);
+    const absWidth = width * pageWidth;
+    const absHeight = height * pageHeight;
+
+    page.drawRectangle({
+        x: absX, y: absY, width: absWidth, height: absHeight,
+        color: rgb(0.9, 0.9, 0.9), opacity: 0.5,
+        borderColor: rgb(0, 0, 1), borderWidth: 2
+    });
+
+    page.drawText("VIDEO: " + (annotation.src || "Linked Video"), {
+        x: absX + 10, y: absY + absHeight / 2, size: 12,
+        font: font, color: rgb(0, 0, 1)
     });
 }
 
