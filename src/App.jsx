@@ -34,8 +34,14 @@ const App = () => {
         // Check for 'file' query parameter on mount
         const params = new URLSearchParams(window.location.search);
         const fileUrl = params.get('file');
+        const showTour = params.get('tour');
+
         if (fileUrl) {
             loadPDF(fileUrl);
+        }
+
+        if (showTour) {
+            import('./utils/tourGuide').then(module => module.startAppTour());
         }
 
         const handleKeyDown = (e) => {

@@ -1,69 +1,56 @@
 
-# PDF Reader App
+# ⚡ PDF Reader App - Ultra Pro
 
-A modern, fast, and feature-rich PDF Reader application built with React and Vite.
+A production-grade, AI-powered PDF Editor & Reader matching professional functionality like WPS Pro. Built for speed, precision, and handling massive documents (1000+ pages).
 
-# LIVE APP LINK
+## 🚀 Live Demo
+**[Launch App](https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app)**
 
-# (Most Advanced version)-->
--**https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app/**
+---
 
--**https://pdfreaderappv2-2g0vmcu61-sayan-samantas-projects-662b7d85.vercel.app/**
+## 🔥 **Exclusive Features (New in v2.5)**
 
+### 🛠️ **Production-Grade PDF Editing**
+Transform your PDF experience with tools that rival desktop software:
 
+*   **⚡ Smart Snip Tool**: Capture any part of a page instantly. Drag to select, then **Copy** to clipboard or **Save as Image**. Intelligent algorithm auto-detects the best quality layer.
+*   **✍️ Interactive Typewriter**: Click *anywhere* to type. Features **Live WYSIWYG editing**—change font size and color instantly while typing. Double-click to re-edit anytime.
+*   **🖼️ PDF to Image Studio**: Export single pages or the entire document to **High-Res PNG, JPEG, or WebP**. Supports "Print Quality" (300 DPI) and batch ZIP export.
+*   **✂️ Split & Merge**: 
+    *   **Extract**: Pull specific page ranges (e.g., "1-5, 10") into a new PDF.
+    *   **Merge**: Drag & drop multiple PDF files to combine them into one master document.
+*   **🔍 Advanced Find & Replace**: Search with Regex support. "Replace" text visibly by overlaying new content seamlessly (perfect for quick edits).
+*   **💬 Threaded Comments**: Add professional comments and notes that track page location. View all discussions in a dedicated sidebar panel.
 
-# Features --> Capable of handeling Large pdf files(>=1000 pages)
-```````````````
-**Have Ai features such as Summeries this pdf, Asking question from pdf,Preparing Roadmap For ur Target Exam ,keeps track of ur progress and Many more Exciting FEatures**
-1) Can upload Multiple Very large Pdf files
-2) Have Ai Features 
-3) checkout it's Slidebar Button ( just Left To Page no writting button), it is a GOLDMIne For Study
-4) Has SearchBar --> where u can search any words/phrase/sentence/ or anything u want --> it will give all the occurence of that in whole pdf WIth Hightlighted that TEXT
-5)
+---
 
-``````````````
+### 🧠 **AI Superpowers**
+*   **Streaming Table of Contents**: Generates a navigable TOC in seconds while you read, even for scanned PDFs without bookmarks.
+*   **Contextual Chat & Q&A**: Ask questions about your document. The AI understands deep context from huge textbooks.
+*   **Exam Roadmap Generator**: Creates a personalized study plan based on the PDF's content.
 
+### 🎙️ **Universal Accessibility**
+*   **Smart Text-to-Speech**: Falls back to OCR for scanned images, so it can "read" pictures.
+*   **Cognitive Load Alerts**: Detects when you're stuck re-reading a paragraph and offers to simplify/explain it.
+*   **Layout-Aware Reading**: Reads columns and sidebars in the correct human order, not just computer code order.
 
-# Other Older versions link -->
+---
 
--**https://pdf-reader-app-41ag.onrender.com/**
+## 💻 Tech Stack
+*   **Core**: React + Vite (Blazing fast)
+*   **PDF Engine**: Custom optimized `pdf.js` with virtualization
+*   **Editing**: `pdf-lib` for binary manipulations
+*   **State**: Global Context with persistent history
+*   **Styles**: Modern CSS Variables & Glassmorphism
 
--**https://pdfreaderappv2-9fchsly24-sayan-samantas-projects-662b7d85.vercel.app/**
--**https://pdfreaderappv2-ibdmu5mrp-sayan-samantas-projects-662b7d85.vercel.app/**
-- **https://pdfreaderaiapp.vercel.app/**
-- **https://pdf-reader-ai-app.onrender.com/**
-  
+---
 
-## Features
+### 📥 Installation
+```bash
+git clone https://github.com/SAYANSAMANTA2005/PDF-Reader-App-v2.git
+cd PDF-Reader-App-v2
+npm install
+npm run dev
+```
 
-- **High Performance**: Optimized for handling large PDF files with ease.
-- **Reading Modes**: Toggle between Light, Dark, and Sepia modes for eye comfort.
-- **Navigation**: Thumbnails, Table of Contents, and Go-to-Page functionality.
-- **Zoom & Rotation**: Flexible viewing controls.
-- **Search**: Built-in text search within PDF documents.
-- **Offline Capable**: Works offline after initial load (PWA ready).
-- **Responsive Design**: Optimized for desktops, tablets, and mobile devices.
-
-### 🚀 New Pro Features (v2.0)
-
-#### 🧠 Advanced AI Capabilities
-*   **Streaming Table of Contents**: Chapters and sections appear **instantly** in the sidebar as the AI discovers them. No more waiting for the full scan to finish!
-*   **Intelligent Auto-Resume**: The system remembers your progress. If a manual scan fails or an API limit is hit, the AI **automatically resumes** searching from where it left off.
-*   **Robust multi-Key Rotation**: Automatically switches between API keys if one gets exhausted, ensuring 99.9% uptime for heavy textbook analysis.
-
-#### 🎙️ Universal Text-to-Speech
-*   **OCR Fallback Engine**: Can now read **scanned images** and non-selectable text aloud by intelligently "seeing" the page content first.
-*   **Smart Reconstruction**: Reads complex layouts (columns, sidebars) in the correct human-readable order, not just computer line-order.
-*   **Instant Playback**: Uses "pre-warming" technology to prevent browser audio blocking, ensuring speech starts the moment you click.
-
-#### 🛠️ Enhanced Productivity
-*   **Manual Priority Mode**: Know the page number? Type it in and hit "Extract" to instantly pause the background scan and prioritize your request.
-*   **Native File Saving**: Integrated with the file system to let you choose exactly where to save your annotated PDFs (supported browsers only).
-
-## Tech Stack
-
-- **Frontend**: React.js
-- **Build Tool**: Vite
-- **Styling**: Vanilla CSS (Modular & Responsive)
-- **PDF Rendering**: pdf.js
-- **Icons**: Lucide React
+*Built by Sayan Samanta*

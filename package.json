@@ -24,6 +24,7 @@
         "@types/fabric": "^5.3.11",
         "clsx": "^2.1.1",
         "docx": "^9.5.1",
+        "driver.js": "^1.4.0",
         "exceljs": "^4.4.0",
         "fabric": "^7.1.0",
         "file-saver": "^2.0.5",

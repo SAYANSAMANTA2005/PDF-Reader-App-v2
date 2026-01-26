@@ -167,6 +167,18 @@ const Toolbar = () => {
                 >
                     <ImageIcon size={20} />
                 </button>
+                <div className="divider"></div>
+                <button
+                    onClick={() => {
+                        import('../utils/tourGuide').then(module => module.startAppTour());
+                    }}
+                    className="tool-btn text-btn"
+                    style={{ width: 'auto', padding: '0 8px' }}
+                    title="Start App Tour"
+                >
+                    <Info size={18} />
+                    <span className="btn-text text-xs font-semibold ml-1">App Tour</span>
+                </button>
             </div>
 
 
