@@ -21,6 +21,7 @@
         "@capacitor/status-bar": "^8.0.0",
         "@google/generative-ai": "^0.24.1",
         "@pdfsmaller/pdf-encrypt-lite": "^1.0.1",
+        "@supabase/supabase-js": "^2.93.0",
         "@types/fabric": "^5.3.11",
         "clsx": "^2.1.1",
         "docx": "^9.5.1",

@@ -24,7 +24,8 @@ const App = () => {
         isPdfToImageOpen, setIsPdfToImageOpen,
         isSplitMergeOpen, setIsSplitMergeOpen,
         isFindReplaceOpen, setIsFindReplaceOpen,
-        isCommentPanelOpen, setIsCommentPanelOpen
+        isCommentPanelOpen, setIsCommentPanelOpen,
+        user, setUserPdfs
     } = usePDF();
     const [isDragging, setIsDragging] = useState(false);
     const isOnMobile = isMobile();
@@ -70,18 +71,15 @@ const App = () => {
 
 
     const handleFileChange = async (e) => {
+        let file;
         if (isOnMobile) {
-            // Use mobile file picker
-            const file = await pickPDFFile();
-            if (file && file.type === 'application/pdf') {
-                loadPDF(file);
-            }
+            file = await pickPDFFile();
         } else {
-            // Web file input
-            const file = e.target.files[0];
-            if (file && file.type === 'application/pdf') {
-                loadPDF(file);
-            }
+            file = e.target.files[0];
+        }
+
+        if (file && file.type === 'application/pdf') {
+            loadPDF(file);
         }
     };
 

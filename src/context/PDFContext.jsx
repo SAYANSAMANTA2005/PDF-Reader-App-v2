@@ -6,6 +6,8 @@ import { generateTOCFromLayout, renderPageToBase64 } from '../utils/pdfStructure
 import { extractTOCFromImage } from '../utils/aiService';
 import { ocrService } from '../utils/OCRService';
 import { Capacitor } from '@capacitor/core';
+import { authService } from '../utils/authService';
+import { supabaseStorage } from '../utils/supabaseStorage';
 // Mobile-aware PDF vision scope
 const isMobilePlatform = Capacitor.isNativePlatform();
 let pdfvision = isMobilePlatform ? 5 : 10;
@@ -115,6 +117,9 @@ export const PDFProvider = ({ children }) => {
     });
 
     const [isPremium, setIsPremium] = useState(false);
+    const [user, setUser] = useState(null);
+    const [userPlan, setUserPlan] = useState('free');
+    const [userPdfs, setUserPdfs] = useState([]);
 
     // PERSISTENT AUDIO ENGINE STATE
     const [audioActiveMode, setAudioActiveMode] = useState('ambient');
@@ -136,11 +141,52 @@ export const PDFProvider = ({ children }) => {
     const [isSnipMode, setIsSnipMode] = useState(false);
     const [isCommentPanelOpen, setIsCommentPanelOpen] = useState(false);
 
+    const refreshUserData = async (currentUser) => {
+        if (!currentUser) return;
+        try {
+            const plan = await authService.getUserPlan(currentUser.id);
+            setUserPlan(plan);
+            setIsPremium(plan === 'pro' || plan === 'elite');
+            const pdfs = await supabaseStorage.getUserPDFs(currentUser.id);
+            setUserPdfs(pdfs);
+        } catch (err) {
+            console.error('Error refreshing user data:', err);
+        }
+    };
+
+    const handleSignIn = async () => {
+        setIsLoading(true);
+        try {
+            const newUser = await authService.signIn();
+            if (newUser) {
+                setUser(newUser);
+                await refreshUserData(newUser);
+            }
+        } catch (err) {
+            console.error('Manual Sign In Failed:', err);
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (!isTtsSelecting) {
             setTtsSelectionPoints([]);
         }
     }, [isTtsSelecting]);
+
+    // Initialize Supabase Session
+    useEffect(() => {
+        const init = async () => {
+            const currentUser = await authService.initSession();
+            if (currentUser) {
+                setUser(currentUser);
+                await refreshUserData(currentUser);
+            }
+        };
+        init();
+    }, []);
 
     const activeScanId = useRef(0);
 
@@ -163,7 +209,7 @@ export const PDFProvider = ({ children }) => {
             const prev = navHistory[navIndex - 1];
             setNavIndex(navIndex - 1);
             const tab = tabs.find(t => t.id === prev.fileId);
-            if (tab) loadPDF(tab.file, tab.id, false); // false to avoid adding to history again
+            if (tab) loadPDF(tab.file, { tabId: tab.id, track: false }); // false to avoid adding to history again
             setCurrentPage(prev.page);
         }
     };
@@ -173,7 +219,7 @@ export const PDFProvider = ({ children }) => {
             const next = navHistory[navIndex + 1];
             setNavIndex(navIndex + 1);
             const tab = tabs.find(t => t.id === next.fileId);
-            if (tab) loadPDF(tab.file, tab.id, false);
+            if (tab) loadPDF(tab.file, { tabId: tab.id, track: false });
             setCurrentPage(next.page);
         }
     };
@@ -594,6 +640,33 @@ export const PDFProvider = ({ children }) => {
                 }];
             });
 
+            // --- SUPABASE AUTOMATIC UPLOAD ---
+            if (user && file) {
+                console.log('☁️ Supabase: Checking Cloud Sync for:', currentFileName);
+                setTimeout(async () => {
+                    try {
+                        // 1. Check if EXACT file already exists (Name + Size)
+                        const duplicate = await supabaseStorage.checkDuplicate(user.id, currentFileName, file.size);
+
+                        if (duplicate) {
+                            console.log('ℹ️ Supabase: File already exists in cloud. Skipping sync.');
+                            return;
+                        }
+
+                        console.log('☁️ Supabase: Triggering background sync...');
+                        const { dbData } = await supabaseStorage.uploadPDF(file, user.id);
+                        console.log('✅ Supabase: Cloud Sync Successful!');
+                        setUserPdfs(prev => [dbData, ...prev]);
+                    } catch (err) {
+                        console.error('❌ Supabase: Cloud sync failed!', err);
+                        if (err.message?.includes('policy') || err.status === 403) {
+                            console.error('👉 TIP: Ensure you have set the STORAGE POLICIES for the "pdfs" bucket in Supabase Dashboard.');
+                        }
+                    }
+                }, 2000);
+            }
+            // ---------------------------------
+
         } catch (err) {
             console.error("Error loading PDF:", err);
             setError("Failed to load PDF. Please try again.");
@@ -647,7 +720,7 @@ export const PDFProvider = ({ children }) => {
             const newTabs = prev.filter(t => t.id !== id);
             if (prev[index]?.isActive && newTabs.length > 0) {
                 const nextTab = newTabs[Math.max(0, index - 1)];
-                loadPDF(nextTab.file, nextTab.id);
+                loadPDF(nextTab.file, { tabId: nextTab.id });
             } else if (newTabs.length === 0) {
                 setPdfDocument(null);
                 setFileName("No file selected");
@@ -666,7 +739,7 @@ export const PDFProvider = ({ children }) => {
         if (ws && ws.tabs.length > 0) {
             setTabs(ws.tabs);
             const activeTab = ws.tabs.find(t => t.isActive) || ws.tabs[0];
-            loadPDF(activeTab.file, activeTab.id);
+            loadPDF(activeTab.file, { tabId: activeTab.id });
         } else {
             setTabs([]);
             setPdfDocument(null);
@@ -798,6 +871,12 @@ export const PDFProvider = ({ children }) => {
         studyPlan, setStudyPlan,
         crossPDFInsights, setCrossPDFInsights,
         equationInsights, setEquationInsights,
+        // Auth & User State
+        user, setUser,
+        userPlan, setUserPlan,
+        userPdfs, setUserPdfs,
+        handleSignIn,
+        refreshUserData,
         isMathMode, setIsMathMode,
         activeEquation, setActiveEquation,
         // Elite Features

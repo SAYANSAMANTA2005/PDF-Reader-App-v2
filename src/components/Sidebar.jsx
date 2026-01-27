@@ -19,6 +19,7 @@ import AmbientSoundPlayer from './AmbientSoundPlayer';
 import TableOfContents from './TableOfContents';
 import HomeToolsPanel from './HomeToolsPanel';
 import HandwritingPanel from './HandwritingPanel';
+import CloudPanel from './CloudPanel';
 import ProductionEditingToolsPanel from './ProductionEditingToolsPanel';
 import {
     Grid,
@@ -39,7 +40,8 @@ import {
     Music,
     PenTool,
     Edit,
-    Home
+    Home,
+    Cloud
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -81,6 +83,7 @@ const Sidebar = () => {
         { id: 'music', icon: <Music size={16} />, label: 'Music' },
         { id: 'workspace', icon: <Layers size={16} />, label: 'Pro' },
         { id: 'store', icon: <Diamond size={16} className={isPremium ? "text-yellow-500" : "text-accent"} />, label: isPremium ? 'Elite' : 'Upgrade' },
+        { id: 'cloud', icon: <Cloud size={16} />, label: 'Cloud' },
         { id: 'handwriting', icon: <PenTool size={16} />, label: 'Digitize' },
         { id: 'edit', icon: <Edit size={16} />, label: 'Edit' },
     ];
@@ -155,6 +158,7 @@ const Sidebar = () => {
                 {activeSidebarTab === 'store' && <ProStore />}
                 {activeSidebarTab === 'bookmarks' && <TableOfContents />}
                 {activeSidebarTab === 'handwriting' && <HandwritingPanel />}
+                {activeSidebarTab === 'cloud' && <CloudPanel />}
                 {activeSidebarTab === 'edit' && <ProductionEditingToolsPanel />}
 
             </div>

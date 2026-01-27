@@ -8,7 +8,8 @@ import {
     Check,
     StickyNote,
     Link as LinkIcon,
-    History
+    History,
+    RefreshCw
 } from 'lucide-react';
 
 const WorkspacePanel = () => {
@@ -77,24 +78,32 @@ const WorkspacePanel = () => {
                         placeholder="Project Name..."
                         className="premium-input flex-1"
                     />
-                    <button onClick={addWorkspace} className="premium-btn !p-2 !shadow-none">
+                    <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); addWorkspace(); }}
+                        className="premium-btn !p-2 !shadow-none"
+                    >
                         <Plus size={20} />
                     </button>
                 </div>
 
                 <div className="grid gap-2">
                     {workspaces.map(ws => (
-                        <button
+                        <div
                             key={ws.id}
-                            onClick={() => switchWorkspace(ws.id)}
-                            className={`group flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${activeWorkspaceId === ws.id ? 'border-indigo-500 bg-indigo-500/5 ring-4 ring-indigo-500/5' : 'border-divider bg-bg-secondary hover:border-indigo-500/30'}`}
+                            onClick={(e) => {
+                                e.preventDefault(); e.stopPropagation();
+                                console.log('🔄 Clicked workspace:', ws.id);
+                                switchWorkspace(ws.id);
+                            }}
+                            className={`group flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left cursor-pointer ${activeWorkspaceId === ws.id ? 'border-indigo-500 bg-indigo-500/5 ring-4 ring-indigo-500/5' : 'border-divider bg-bg-secondary hover:border-indigo-500/30'}`}
                         >
                             <div className={`p-2 rounded-lg transition ${activeWorkspaceId === ws.id ? 'bg-indigo-500 text-white' : 'bg-secondary text-secondary group-hover:text-indigo-500'}`}>
                                 <Folder size={16} />
                             </div>
                             <span className={`flex-1 text-xs font-bold transition ${activeWorkspaceId === ws.id ? 'text-indigo-600' : 'text-primary'}`}>{ws.name}</span>
                             {activeWorkspaceId === ws.id && <Check size={16} className="text-indigo-500" />}
-                        </button>
+                        </div>
                     ))}
                 </div>
             </section>
@@ -114,7 +123,11 @@ const WorkspacePanel = () => {
                         placeholder="Capture a thought across all PDFs..."
                         className="premium-input min-h-[100px] resize-none border-none bg-transparent !p-0 focus:ring-0"
                     />
-                    <button onClick={addNote} className="premium-btn w-full !bg-amber-600 hover:!bg-amber-700 shadow-amber-600/20">
+                    <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); addNote(); }}
+                        className="premium-btn w-full !bg-amber-600 hover:!bg-amber-700 shadow-amber-600/20"
+                    >
                         Capture Insight
                     </button>
                 </div>
@@ -147,6 +160,5 @@ const WorkspacePanel = () => {
         </div>
     );
 };
-
 
 export default WorkspacePanel;
