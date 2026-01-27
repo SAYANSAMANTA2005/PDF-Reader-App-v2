@@ -22,6 +22,8 @@ export const authService = {
                 return data.user;
             }
 
+            // Always sync profile to ensure database record exists for foreign keys
+            await this.syncUserProfile(session.user);
             return session.user;
         } catch (err) {
             console.error('Auth initialization failed:', err);

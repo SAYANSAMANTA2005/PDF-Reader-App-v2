@@ -4,11 +4,15 @@ import { Cloud, FileText, Trash2, Download, ExternalLink, RefreshCw, UploadCloud
 import { supabaseStorage } from '../utils/supabaseStorage';
 
 const CloudPanel = () => {
-    const { user, userPdfs, setUserPdfs, loadPDF, handleSignIn } = usePDF();
+    const { user, userPdfs, setUserPdfs, loadPDF, handleSignIn, isCloudSyncing } = usePDF();
     const [isRefreshing, setIsRefreshing] = React.useState(false);
     const [isUploading, setIsUploading] = React.useState(false);
     const [authError, setAuthError] = React.useState(null);
     const fileInputRef = React.useRef(null);
+
+    React.useEffect(() => {
+        if (user) refreshPdfs();
+    }, [user]);
 
     const refreshPdfs = async () => {
         if (!user) return;
@@ -44,18 +48,34 @@ const CloudPanel = () => {
     };
 
     const handleDelete = async (id, path) => {
-        if (!confirm('Are you sure you want to delete this PDF from the cloud?')) return;
+        if (!confirm('🗑️ Are you sure you want to delete this PDF from your cloud storage permanently?')) return;
+
         try {
+            console.log('🗑️ UI: Initiating delete for:', path);
             await supabaseStorage.deletePDF(id, path);
+
+            // Remove from local state immediately for snappy feel
             setUserPdfs(prev => prev.filter(p => p.id !== id));
+
+            console.log('✅ UI: Delete successful');
         } catch (err) {
-            alert('Delete failed: ' + err.message);
+            console.error('❌ UI: Delete error:', err);
+            alert('Cloud Delete failed! \n\nTIP: Check if your Supabase Storage Policies allow "DELETE" operations for the "pdfs" bucket.');
+
+            // Re-sync just in case
+            refreshPdfs();
         }
     };
 
     const handleManualUpload = async (e) => {
         const file = e.target.files[0];
         if (!file || file.type !== 'application/pdf') return;
+
+        const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+        if (file.size > MAX_SIZE) {
+            alert(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum size is 50MB.`);
+            return;
+        }
 
         setIsUploading(true);
         try {
@@ -117,8 +137,14 @@ const CloudPanel = () => {
         <div className="cloud-panel flex flex-col h-full bg-primary">
             <div className="p-4 border-b flex justify-between items-center bg-secondary/30">
                 <div className="flex items-center gap-2">
-                    <Cloud size={18} className="text-accent" />
-                    <span className="font-bold text-sm tracking-tight">Cloud Documents</span>
+                    <Cloud size={18} className={isCloudSyncing ? 'text-accent animate-pulse' : 'text-accent'} />
+                    <span className="font-bold text-sm tracking-tight text-primary">Cloud Documents</span>
+                    {isCloudSyncing && (
+                        <div className="flex items-center gap-1.5 ml-2">
+                            <RefreshCw size={10} className="animate-spin text-accent" />
+                            <span className="text-[9px] font-bold text-accent uppercase tracking-tighter">Syncing...</span>
+                        </div>
+                    )}
                 </div>
                 <div className="flex items-center gap-1">
                     <input
@@ -225,9 +251,12 @@ const CloudPanel = () => {
 
             <div className="p-4 bg-secondary/10 border-t mt-auto">
                 <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">Storage used</span>
-                    <span className="text-[10px] font-medium text-accent">
+                    <span className="text-[11px] font-black text-secondary uppercase tracking-[0.1em]">Total Storage Used</span>
+                    <span className="text-[11px] font-black text-accent drop-shadow-sm">
                         {(userPdfs.reduce((acc, p) => acc + (p.size || 0), 0) / 1024 / 1024).toFixed(1)} / 1024 MB
+                        <span className="ml-1 opacity-60 text-[9px]">
+                            ({Math.min(100, (userPdfs.reduce((acc, p) => acc + (p.size || 0), 0) / (1024 * 1024 * 1024)) * 100).toFixed(1)}%)
+                        </span>
                     </span>
                 </div>
                 <div className="h-1.5 bg-secondary/20 rounded-full overflow-hidden">
@@ -237,7 +266,7 @@ const CloudPanel = () => {
                     />
                 </div>
                 <p className="text-[9px] text-secondary mt-2 leading-tight">
-                    Premium users get unlimited cloud storage and advanced AI grounding.
+                    Maximum individual file size: 50 MB. Shared space: 1024 MB.
                 </p>
             </div>
         </div>

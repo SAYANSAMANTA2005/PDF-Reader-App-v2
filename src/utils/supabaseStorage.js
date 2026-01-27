@@ -110,19 +110,32 @@ export const supabaseStorage = {
      * Delete a PDF
      */
     async deletePDF(pdfId, storagePath) {
-        // 1. Delete from DB
+        console.log(`🗑️ Supabase: Requesting deletion for ${storagePath}`);
+
+        // 1. Delete from DB (Try by ID first)
         const { error: dbError } = await supabase
             .from('pdfs')
             .delete()
             .eq('id', pdfId);
 
-        if (dbError) throw dbError;
+        // If ID delete didn't work (might be a storage UUID), try deleting by storage_path
+        if (!dbError) {
+            await supabase
+                .from('pdfs')
+                .delete()
+                .eq('storage_path', storagePath);
+        }
 
-        // 2. Delete from Storage
+        // 2. Delete from Storage (The most important part)
         const { error: storageError } = await supabase.storage
             .from('pdfs')
             .remove([storagePath]);
 
-        if (storageError) console.error('Error deleting from storage:', storageError.message);
+        if (storageError) {
+            console.error('❌ Supabase Storage: Delete failed', storageError.message);
+            throw storageError;
+        }
+
+        console.log('✅ Supabase: File successfully removed from cloud');
     }
 };

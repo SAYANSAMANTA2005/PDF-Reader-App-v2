@@ -140,6 +140,7 @@ export const PDFProvider = ({ children }) => {
     const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
     const [isSnipMode, setIsSnipMode] = useState(false);
     const [isCommentPanelOpen, setIsCommentPanelOpen] = useState(false);
+    const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
     const refreshUserData = async (currentUser) => {
         if (!currentUser) return;
@@ -644,12 +645,21 @@ export const PDFProvider = ({ children }) => {
             if (user && file) {
                 console.log('☁️ Supabase: Checking Cloud Sync for:', currentFileName);
                 setTimeout(async () => {
+                    setIsCloudSyncing(true);
                     try {
+                        // 0. Check size limit
+                        const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+                        if (file.size > MAX_SIZE) {
+                            console.log('ℹ️ Supabase: File too large for auto-sync (>50MB). Skipping.');
+                            setIsCloudSyncing(false);
+                            return;
+                        }
+
                         // 1. Check if EXACT file already exists (Name + Size)
                         const duplicate = await supabaseStorage.checkDuplicate(user.id, currentFileName, file.size);
-
                         if (duplicate) {
                             console.log('ℹ️ Supabase: File already exists in cloud. Skipping sync.');
+                            setIsCloudSyncing(false);
                             return;
                         }
 
@@ -662,6 +672,8 @@ export const PDFProvider = ({ children }) => {
                         if (err.message?.includes('policy') || err.status === 403) {
                             console.error('👉 TIP: Ensure you have set the STORAGE POLICIES for the "pdfs" bucket in Supabase Dashboard.');
                         }
+                    } finally {
+                        setIsCloudSyncing(false);
                     }
                 }, 2000);
             }
@@ -877,6 +889,7 @@ export const PDFProvider = ({ children }) => {
         userPdfs, setUserPdfs,
         handleSignIn,
         refreshUserData,
+        isCloudSyncing,
         isMathMode, setIsMathMode,
         activeEquation, setActiveEquation,
         // Elite Features
