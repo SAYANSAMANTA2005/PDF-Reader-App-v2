@@ -11,6 +11,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(
-    supabaseUrl || 'https://invalid-url.supabase.co',
-    supabaseAnonKey || 'no-key-provided'
+    supabaseUrl,
+    supabaseAnonKey
 );

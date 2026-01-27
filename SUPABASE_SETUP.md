@@ -49,6 +49,9 @@ create policy "Users can view own profile" on public.users
 create policy "Users can update own profile" on public.users
   for update using (auth.uid() = id);
 
+create policy "Users can insert own profile" on public.users
+  for insert with check (auth.uid() = id);
+
 -- Users can only see/edit their own PDFs
 create policy "Users can view own pdfs" on public.pdfs
   for select using (auth.uid() = user_id);

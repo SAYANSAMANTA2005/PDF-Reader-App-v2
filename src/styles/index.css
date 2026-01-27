@@ -307,3 +307,12 @@ button {
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
+@keyframes progress-indefinite {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.animate-progress-indefinite {
+    animation: progress-indefinite 1.5s infinite ease-in-out;
+    width: 100%;
+}

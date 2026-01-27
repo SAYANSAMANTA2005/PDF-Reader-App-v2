@@ -4,11 +4,26 @@ import { Cloud, FileText, Trash2, Download, ExternalLink, RefreshCw, UploadCloud
 import { supabaseStorage } from '../utils/supabaseStorage';
 
 const CloudPanel = () => {
-    const { user, userPdfs, setUserPdfs, loadPDF, handleSignIn, isCloudSyncing } = usePDF();
+    const {
+        user, userPdfs, setUserPdfs, loadPDF,
+        isCloudSyncing, hasUnsavedAnnotations, updateCloudVersion
+    } = usePDF();
     const [isRefreshing, setIsRefreshing] = React.useState(false);
     const [isUploading, setIsUploading] = React.useState(false);
     const [authError, setAuthError] = React.useState(null);
     const fileInputRef = React.useRef(null);
+
+    const handleCloudFileOpen = async (pdf) => {
+        if (hasUnsavedAnnotations) {
+            const choice = confirm("⚠️ Unsaved Annotations Detected!\n\nWould you like to SAVE your drawings to the Cloud (updating the previous version) before opening the new file?\n\n- OK: Save & Open\n- Cancel: Open Without Saving");
+
+            if (choice) {
+                console.log("🔄 Cloud Sync: Auto-updating cloud version...");
+                await updateCloudVersion();
+            }
+        }
+        loadPDF(pdf.public_url, { customFileName: pdf.file_name });
+    };
 
     React.useEffect(() => {
         if (user) refreshPdfs();
@@ -32,8 +47,7 @@ const CloudPanel = () => {
         setIsRefreshing(true);
         try {
             console.log('🔄 Deep Syncing with Supabase Storage...');
-            const storageFiles = await supabaseStorage.listAllStorageFiles(user.id);
-
+            const storageFiles = await supabaseStorage.listAllStorageFiles(user.id, user.email);
             // Filter out placeholder files or internal supabase system files
             const validFiles = storageFiles.filter(f => f.file_name !== '.emptyFolderPlaceholder' && f.file_name.endsWith('.pdf'));
 
@@ -87,7 +101,7 @@ const CloudPanel = () => {
             }
 
             console.log('☁️ Manual Upload Starting:', file.name);
-            const { dbData } = await supabaseStorage.uploadPDF(file, user.id);
+            const { dbData } = await supabaseStorage.uploadPDF(file, user.id, user.email);
             setUserPdfs(prev => [dbData, ...prev]);
             console.log('✅ Manual Upload Success');
         } catch (err) {
@@ -99,52 +113,13 @@ const CloudPanel = () => {
         }
     };
 
-    if (!user) {
-        return (
-            <div className="p-8 text-center flex flex-col items-center gap-4">
-                <Cloud size={48} className="text-secondary opacity-20" />
-                <h3 className="font-bold text-lg">Cloud Storage</h3>
-                <p className="text-sm text-secondary">Sign in to sync your PDFs across devices.</p>
-
-                {authError && (
-                    <div className="bg-red-50 border border-red-200 text-red-600 p-2 rounded-lg text-[10px] w-full mb-2">
-                        <strong>Error:</strong> {authError}
-                        <p className="mt-1 opacity-70">Check if Supabase Anon Key is set in .env and Anonymous Auth is enabled in Supabase Dashboard.</p>
-                    </div>
-                )}
-
-                <button
-                    onClick={async () => {
-                        console.log('☁️ Cloud: Sign In button clicked');
-                        setAuthError(null);
-                        try {
-                            await handleSignIn();
-                            console.log('☁️ Cloud: Sign In successful');
-                        } catch (err) {
-                            console.error('☁️ Cloud: Sign In error:', err);
-                            setAuthError(err.message || 'Unknown authentication error');
-                        }
-                    }}
-                    className="bg-accent text-white px-6 py-2 rounded-xl font-bold text-sm hover:scale-105 transition-transform active:scale-95"
-                >
-                    Sign In Free
-                </button>
-            </div>
-        );
-    }
-
     return (
-        <div className="cloud-panel flex flex-col h-full bg-primary">
-            <div className="p-4 border-b flex justify-between items-center bg-secondary/30">
+        <div className="flex flex-col h-full bg-secondary/5 backdrop-blur-md">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
                 <div className="flex items-center gap-2">
-                    <Cloud size={18} className={isCloudSyncing ? 'text-accent animate-pulse' : 'text-accent'} />
-                    <span className="font-bold text-sm tracking-tight text-primary">Cloud Documents</span>
-                    {isCloudSyncing && (
-                        <div className="flex items-center gap-1.5 ml-2">
-                            <RefreshCw size={10} className="animate-spin text-accent" />
-                            <span className="text-[9px] font-bold text-accent uppercase tracking-tighter">Syncing...</span>
-                        </div>
-                    )}
+                    <Cloud size={18} className="text-accent" />
+                    <h2 className="text-sm font-black uppercase tracking-widest text-primary drop-shadow-sm">Cloud Documents</h2>
                 </div>
                 <div className="flex items-center gap-1">
                     <input
@@ -209,7 +184,7 @@ const CloudPanel = () => {
                         >
                             <div
                                 className="flex items-start gap-3"
-                                onClick={() => loadPDF(pdf.public_url, { customFileName: pdf.file_name })}
+                                onClick={() => handleCloudFileOpen(pdf)}
                             >
                                 <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center text-accent shrink-0">
                                     <FileText size={20} />
@@ -238,7 +213,7 @@ const CloudPanel = () => {
                                     title="Open in Reader"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        loadPDF(pdf.public_url, { customFileName: pdf.file_name });
+                                        handleCloudFileOpen(pdf);
                                     }}
                                 >
                                     <ExternalLink size={12} />
@@ -254,21 +229,24 @@ const CloudPanel = () => {
                     <span className="text-[11px] font-black text-secondary uppercase tracking-[0.1em]">Total Storage Used</span>
                     <span className="text-[11px] font-black text-accent drop-shadow-sm">
                         {(userPdfs.reduce((acc, p) => acc + (p.size || 0), 0) / 1024 / 1024).toFixed(1)} / 1024 MB
-                        <span className="ml-1 opacity-60 text-[9px]">
-                            ({Math.min(100, (userPdfs.reduce((acc, p) => acc + (p.size || 0), 0) / (1024 * 1024 * 1024)) * 100).toFixed(1)}%)
-                        </span>
                     </span>
                 </div>
-                <div className="h-1.5 bg-secondary/20 rounded-full overflow-hidden">
+                <div className="w-full bg-secondary/20 h-2 rounded-full overflow-hidden shadow-inner">
                     <div
-                        className="h-full bg-accent"
-                        style={{ width: `${Math.min(100, (userPdfs.reduce((acc, p) => acc + (p.size || 0), 0) / (1024 * 1024 * 1024)) * 100)}%` }}
+                        className="h-full bg-gradient-to-r from-accent to-blue-400 shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)] transition-all duration-500"
+                        style={{ width: `${Math.min(100, (userPdfs.reduce((acc, p) => acc + (p.size || 0), 0) / 1024 / 1024 / 1024) * 100)}%` }}
                     />
                 </div>
-                <p className="text-[9px] text-secondary mt-2 leading-tight">
+                <p className="text-[9px] text-secondary/50 mt-2 font-bold uppercase tracking-tighter">
                     Maximum individual file size: 50 MB. Shared space: 1024 MB.
                 </p>
             </div>
+            {isCloudSyncing && (
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center gap-3 animate-in fade-in duration-300">
+                    <div className="w-12 h-12 border-4 border-accent/20 border-t-accent rounded-full animate-spin shadow-lg" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-accent animate-pulse">Syncing to Cloud...</p>
+                </div>
+            )}
         </div>
     );
 };

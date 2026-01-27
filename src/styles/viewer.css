@@ -130,10 +130,6 @@
     /* Reduced gap */
     flex: 1;
     justify-content: space-between;
-    overflow-x: auto;
-    /* Allow scroll if absolutely needed */
-    scrollbar-width: none;
-    /* Hide scrollbar */
 }
 
 .toolbar-group {

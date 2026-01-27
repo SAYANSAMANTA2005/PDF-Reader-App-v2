@@ -2,13 +2,24 @@ import { supabase } from '../lib/supabase';
 
 export const supabaseStorage = {
     /**
+     * Helper to get folder name (Prefer Email, fallback to ID)
+     */
+    getStorageFolder(userId, userEmail) {
+        // Remove special characters from email to make it a safe folder name
+        const folder = userEmail ? userEmail.replace(/[^a-zA-Z0-9.@_-]/g, '_') : userId;
+        return folder;
+    },
+
+    /**
      * Upload PDF to Supabase Storage and Save Metadata to DB
      */
-    async uploadPDF(file, userId) {
-        console.log(`☁️ Supabase: Starting upload for ${file.name} (User: ${userId})`);
+    async uploadPDF(file, userId, userEmail = null) {
+        const folder = this.getStorageFolder(userId, userEmail);
+        console.log(`☁️ Supabase: Starting upload for ${file.name} (Folder: ${folder})`);
+
         if (!file || !userId) throw new Error('File and User ID are required');
 
-        const fileName = `${userId}/${file.name}`;
+        const fileName = `${folder}/${file.name}`;
 
         // 1. Upload to Storage
         const { data: storageData, error: storageError } = await supabase.storage
@@ -20,12 +31,12 @@ export const supabaseStorage = {
 
         if (storageError) throw storageError;
 
-        // 2. Get Public URL (optional, if you want to store it)
+        // 2. Get Public URL
         const { data: { publicUrl } } = supabase.storage
             .from('pdfs')
             .getPublicUrl(fileName);
 
-        // 3. Save Metadata to DB
+        // 3. Save Metadata to DB (We still use userId for the DB link)
         const { data: dbData, error: dbError } = await supabase
             .from('pdfs')
             .insert({
@@ -39,7 +50,6 @@ export const supabaseStorage = {
             .single();
 
         if (dbError) {
-            // Cleanup storage if DB insert fails
             await supabase.storage.from('pdfs').remove([fileName]);
             throw dbError;
         }
@@ -81,12 +91,13 @@ export const supabaseStorage = {
     },
 
     /**
-     * List all files directly from Storage (useful if DB is out of sync)
+     * List all files directly from Storage (Syncing tool)
      */
-    async listAllStorageFiles(userId) {
+    async listAllStorageFiles(userId, userEmail = null) {
+        const folder = this.getStorageFolder(userId, userEmail);
         const { data, error } = await supabase.storage
             .from('pdfs')
-            .list(userId, {
+            .list(folder, {
                 limit: 100,
                 offset: 0,
                 sortBy: { column: 'created_at', order: 'desc' }
@@ -94,14 +105,13 @@ export const supabaseStorage = {
 
         if (error) throw error;
 
-        // Convert storage objects to a format similar to our DB records
         return data.map(file => ({
             id: file.id,
             file_name: file.name,
             size: file.metadata.size,
             created_at: file.created_at,
-            storage_path: `${userId}/${file.name}`,
-            public_url: supabase.storage.from('pdfs').getPublicUrl(`${userId}/${file.name}`).data.publicUrl,
+            storage_path: `${folder}/${file.name}`,
+            public_url: supabase.storage.from('pdfs').getPublicUrl(`${folder}/${file.name}`).data.publicUrl,
             is_from_storage: true // flag to distinguish
         }));
     },

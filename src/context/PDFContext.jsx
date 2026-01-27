@@ -8,6 +8,7 @@ import { ocrService } from '../utils/OCRService';
 import { Capacitor } from '@capacitor/core';
 import { authService } from '../utils/authService';
 import { supabaseStorage } from '../utils/supabaseStorage';
+import { exportAnnotatedPDF } from '../utils/pdfExportService';
 // Mobile-aware PDF vision scope
 const isMobilePlatform = Capacitor.isNativePlatform();
 let pdfvision = isMobilePlatform ? 5 : 10;
@@ -141,7 +142,63 @@ export const PDFProvider = ({ children }) => {
     const [isSnipMode, setIsSnipMode] = useState(false);
     const [isCommentPanelOpen, setIsCommentPanelOpen] = useState(false);
     const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+    const [downloadProgress, setDownloadProgress] = useState(0);
+    const [hasUnsavedAnnotations, setHasUnsavedAnnotations] = useState(false);
 
+    /**
+     * elite Feature: Flatten and Update Cloud Version
+     */
+    const updateCloudVersion = async () => {
+        if (!pdfDocument || !pdfFile || !user) return;
+
+        setIsCloudSyncing(true);
+        try {
+            console.log('🔄 Cloud: Preparing annotated version for cloud update...');
+
+            // 1. Get the raw PDF bytes
+            let pdfBytes;
+            if (pdfFile instanceof File) {
+                pdfBytes = await pdfFile.arrayBuffer();
+            } else if (typeof pdfFile === 'string') {
+                const response = await fetch(pdfFile);
+                pdfBytes = await response.arrayBuffer();
+            } else {
+                pdfBytes = pdfFile; // Already an arrayBuffer or Uint8Array
+            }
+
+            // 2. Flatten annotations into PDF (using service)
+            const annotatedBytes = await exportAnnotatedPDF(pdfBytes, annotations);
+
+            // 3. Create a File object
+            const blob = new Blob([annotatedBytes], { type: 'application/pdf' });
+            const finalFile = new File([blob], fileName, { type: 'application/pdf' });
+
+            // 4. Update Cloud (Delete old first to be safe, or upsert if bucket allows)
+            // We'll search for the current one in our list to get the storage path
+            const currentCloudPdF = userPdfs.find(p => p.file_name === fileName);
+            if (currentCloudPdF) {
+                console.log('🗑️ Cloud: Removing replaced version...');
+                await supabaseStorage.deletePDF(currentCloudPdF.id, currentCloudPdF.storage_path);
+            }
+
+            // 5. Upload new version
+            console.log('📤 Cloud: Uploading flattened version...');
+            const { dbData } = await supabaseStorage.uploadPDF(finalFile, user.id, user.email);
+
+            // 6. Update local list
+            setUserPdfs(prev => [dbData, ...prev.filter(p => p.file_name !== fileName)]);
+            setHasUnsavedAnnotations(false);
+
+            console.log('✅ Cloud: Successfully updated storage with annotations');
+            return true;
+        } catch (err) {
+            console.error('❌ Cloud Update Failed:', err);
+            alert('Cloud Update failed: ' + err.message);
+            return false;
+        } finally {
+            setIsCloudSyncing(false);
+        }
+    };
     const refreshUserData = async (currentUser) => {
         if (!currentUser) return;
         try {
@@ -156,7 +213,7 @@ export const PDFProvider = ({ children }) => {
     };
 
     const handleSignIn = async () => {
-        setIsLoading(true);
+        setPdfDocument(null); setAnnotations({}); setIsLoading(true); setDownloadProgress(0);
         try {
             const newUser = await authService.signIn();
             if (newUser) {
@@ -508,7 +565,7 @@ export const PDFProvider = ({ children }) => {
 
     const loadPDF = async (file, options = {}) => {
         const { tabId: customTabId, track = true, initialPage = 1, customFileName = null } = options;
-        setIsLoading(true);
+        setPdfDocument(null); setAnnotations({}); setIsLoading(true); setDownloadProgress(0);
         setError(null);
 
         const tabId = customTabId || Math.random().toString(36).substr(2, 9);
@@ -524,6 +581,11 @@ export const PDFProvider = ({ children }) => {
                     disableAutoFetch: true,
                     disableStream: false
                 });
+
+                loadingTask.onProgress = ({ loaded, total }) => {
+                    if (total > 0) setDownloadProgress(Math.round((loaded / total) * 100));
+                };
+
                 currentFileName = file.split('/').pop();
             } else if (file instanceof File) {
                 const arrayBuffer = await file.arrayBuffer();
@@ -543,12 +605,25 @@ export const PDFProvider = ({ children }) => {
             }
 
             const pdf = await loadingTask.promise;
-
             setPdfDocument(pdf);
             setPdfFile(file);
             setFileName(currentFileName);
             setNumPages(pdf.numPages);
             setCurrentPage(initialPage);
+
+            // Load PDF-specific annotations from storage
+            const savedAnns = localStorage.getItem(`annotations_${currentFileName}`);
+            if (savedAnns) {
+                try {
+                    setAnnotations(JSON.parse(savedAnns));
+                    console.log(`✅ Restored ${Object.keys(JSON.parse(savedAnns)).length} pages of annotations for: ${currentFileName}`);
+                } catch (e) {
+                    console.error("Failed to parse saved annotations", e);
+                    setAnnotations({});
+                }
+            } else {
+                setAnnotations({});
+            }
 
             // ALWAYS skip initial text extraction for performance
             // Text will be extracted lazily as user scrolls to pages
@@ -664,7 +739,7 @@ export const PDFProvider = ({ children }) => {
                         }
 
                         console.log('☁️ Supabase: Triggering background sync...');
-                        const { dbData } = await supabaseStorage.uploadPDF(file, user.id);
+                        const { dbData } = await supabaseStorage.uploadPDF(file, user.id, user.email);
                         console.log('✅ Supabase: Cloud Sync Successful!');
                         setUserPdfs(prev => [dbData, ...prev]);
                     } catch (err) {
@@ -889,7 +964,7 @@ export const PDFProvider = ({ children }) => {
         userPdfs, setUserPdfs,
         handleSignIn,
         refreshUserData,
-        isCloudSyncing,
+        isCloudSyncing, downloadProgress, hasUnsavedAnnotations, updateCloudVersion,
         isMathMode, setIsMathMode,
         activeEquation, setActiveEquation,
         // Elite Features
@@ -1068,12 +1143,13 @@ export const PDFProvider = ({ children }) => {
         }
     }, [pdfDocument]);
 
-    // 2. Persist annotations to local storage for recovery
+    // 2. Persist annotations to local storage for recovery (PDF Specific)
     useEffect(() => {
-        if (Object.keys(annotations).length > 0) {
-            localStorage.setItem('cached_annotations', JSON.stringify(annotations));
+        if (fileName && fileName !== "No file selected" && Object.keys(annotations).length > 0) {
+            const key = `annotations_${fileName}`;
+            localStorage.setItem(key, JSON.stringify(annotations));
         }
-    }, [annotations]);
+    }, [annotations, fileName]);
 
     // 3. Browser Event Listeners (Enhanced)
     useEffect(() => {
@@ -1113,6 +1189,14 @@ export const PDFProvider = ({ children }) => {
             window.removeEventListener('keydown', handleKeys);
         };
     }, [annotations, pdfDocument, fileName]);
+
+    useEffect(() => {
+        if (!isLoading && pdfDocument && Object.keys(annotations).length > 0) {
+            setHasUnsavedAnnotations(true);
+        } else if (!pdfDocument || Object.keys(annotations).length === 0) {
+            setHasUnsavedAnnotations(false);
+        }
+    }, [annotations, isLoading, pdfDocument]);
 
     return (
         <PDFContext.Provider value={value}>

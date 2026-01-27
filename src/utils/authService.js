@@ -47,6 +47,7 @@ export const authService = {
      * Sync user profile to the 'users' table
      */
     async syncUserProfile(user) {
+        console.log('👤 Auth: Syncing profile for User ID:', user.id);
         const { data, error } = await supabase
             .from('users')
             .upsert({
@@ -55,7 +56,13 @@ export const authService = {
                 last_login: new Date().toISOString()
             }, { onConflict: 'id' });
 
-        if (error) console.error('Error syncing user profile:', error.message);
+        if (error) {
+            console.error('❌ Auth: User profile sync failed!', error.message);
+            // If this fails, the foreign key constraint on "pdfs" will definitely trigger later
+            throw new Error(`Profile sync failed: ${error.message}`);
+        }
+
+        console.log('✅ Auth: Profile synced successfully');
         return data;
     },
 
