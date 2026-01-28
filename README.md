@@ -12,9 +12,10 @@ This isn't just another PDF reader—it's a **Revolutionary Learning Environment
 ## 🌐 **Live Deployment Links**
 
 ### 🚀 **Most Advanced Version (Recommended)**
-- **Primary**: [https://pdfreaderappv2-cflh09twa-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-cflh09twa-sayan-samantas-projects-662b7d85.vercel.app/)
-- **Mirror 1**: [https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app/)
-- **Mirror 2**: [https://pdfreaderappv2-2g0vmcu61-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-2g0vmcu61-sayan-samantas-projects-662b7d85.vercel.app/)
+- **Primary**:  [https://pdfreaderappv2-2dugztvz2-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-2dugztvz2-sayan-samantas-projects-662b7d85.vercel.app/)
+- **Mirror 1**: [https://pdfreaderappv2-cflh09twa-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-cflh09twa-sayan-samantas-projects-662b7d85.vercel.app/)
+- **Mirror 2**: [https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app/)
+- **Mirror 3**: [https://pdfreaderappv2-2g0vmcu61-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-2g0vmcu61-sayan-samantas-projects-662b7d85.vercel.app/)
 
 ### 📦 **Stable Production Versions**
 - [https://pdf-reader-app-41ag.onrender.com/](https://pdf-reader-app-41ag.onrender.com/)
@@ -203,7 +204,7 @@ Built with:
 
 **⭐ Star this repo if you find it useful!**
 
-**🚀 [Try the Live App Now](https://pdfreaderappv2-cflh09twa-sayan-samantas-projects-662b7d85.vercel.app/)**
+**🚀 [Try the Live App Now](https://pdfreaderappv2-2dugztvz2-sayan-samantas-projects-662b7d85.vercel.app/)**
 
 Made with ❤️ by Sayan Samanta
 
