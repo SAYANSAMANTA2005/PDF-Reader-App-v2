@@ -48,6 +48,8 @@ This isn't just another PDF reader—it's a **Revolutionary Learning Environment
 | **Multi-PDF Tabs** | ✅ | ✅ | ✅ | ❌ |
 | **Export to Notion/Obsidian** | ✅ | ❌ | ❌ | ❌ |
 
+> **Disclaimer**: Pricing and features are based on publicly available information as of January 2025. Adobe Acrobat, Foxit Reader, and Chrome PDF are trademarks of their respective owners. This comparison is for informational purposes only. We are not affiliated with, endorsed by, or sponsored by Adobe, Foxit, Google, or any other mentioned companies.
+
 ### 🏆 **What Makes Us Different**
 
 1. **🤖 AI-First Design**: Every feature is powered by cutting-edge AI, not just basic text extraction.
