@@ -21,6 +21,7 @@ import HomeToolsPanel from './HomeToolsPanel';
 import HandwritingPanel from './HandwritingPanel';
 import CloudPanel from './CloudPanel';
 import ProductionEditingToolsPanel from './ProductionEditingToolsPanel';
+import SharePanel from './SharePanel';
 import {
     Grid,
     List,
@@ -86,6 +87,7 @@ const Sidebar = () => {
         { id: 'cloud', icon: <Cloud size={16} />, label: 'Cloud' },
         { id: 'handwriting', icon: <PenTool size={16} />, label: 'Digitize' },
         { id: 'edit', icon: <Edit size={16} />, label: 'Edit' },
+        { id: 'share', icon: <Share2 size={16} />, label: 'Share' },
     ];
 
     return (
@@ -160,6 +162,7 @@ const Sidebar = () => {
                 {activeSidebarTab === 'handwriting' && <HandwritingPanel />}
                 {activeSidebarTab === 'cloud' && <CloudPanel />}
                 {activeSidebarTab === 'edit' && <ProductionEditingToolsPanel />}
+                {activeSidebarTab === 'share' && <SharePanel />}
 
             </div>
 

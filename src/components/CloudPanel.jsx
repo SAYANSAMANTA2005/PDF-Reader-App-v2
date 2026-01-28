@@ -113,15 +113,17 @@ const CloudPanel = () => {
         }
     };
 
+    const totalSize = userPdfs.reduce((acc, p) => acc + (p.size || 0), 0) / 1024 / 1024;
+
     return (
         <div className="flex flex-col h-full bg-secondary/5 backdrop-blur-md">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-2">
                     <Cloud size={18} className="text-accent" />
-                    <h2 className="text-sm font-black uppercase tracking-widest text-primary drop-shadow-sm">Cloud Documents</h2>
+                    <h2 className="text-sm font-black uppercase tracking-widest text-primary">Cloud Documents</h2>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
                     <input
                         type="file"
                         ref={fileInputRef}
@@ -144,6 +146,18 @@ const CloudPanel = () => {
                     >
                         <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
                     </button>
+                </div>
+            </div>
+
+            {/* Storage Stats Bar */}
+            <div className="px-4 py-3 bg-secondary/5 border-b border-border">
+                <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-text-secondary">
+                        {userPdfs.length} {userPdfs.length === 1 ? 'Document' : 'Documents'}
+                    </span>
+                    <span className="font-bold text-accent">
+                        {totalSize.toFixed(1)} MB / 1024 MB
+                    </span>
                 </div>
             </div>
 
@@ -180,24 +194,24 @@ const CloudPanel = () => {
                     userPdfs.map(pdf => (
                         <div
                             key={pdf.id}
-                            className="group relative bg-primary border rounded-xl p-3 hover:border-accent hover:shadow-lg transition-all cursor-pointer"
+                            className="group relative bg-primary border border-border rounded-lg p-2.5 hover:border-accent hover:shadow-md transition-all cursor-pointer"
                         >
                             <div
-                                className="flex items-start gap-3"
+                                className="flex items-center gap-2.5"
                                 onClick={() => handleCloudFileOpen(pdf)}
                             >
-                                <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center text-accent shrink-0">
-                                    <FileText size={20} />
+                                <div className="w-8 h-8 bg-accent/10 rounded-md flex items-center justify-center text-accent shrink-0">
+                                    <FileText size={16} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h4 className="text-xs font-bold truncate pr-6">{pdf.file_name}</h4>
-                                    <p className="text-[10px] text-secondary mt-1">
+                                    <p className="text-[10px] text-secondary mt-0.5">
                                         {(pdf.size / 1024 / 1024).toFixed(2)} MB • {new Date(pdf.created_at).toLocaleDateString()}
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-primary/80 backdrop-blur-sm p-1 rounded-lg">
+                            <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-primary/90 backdrop-blur-sm p-0.5 rounded-md shadow-sm">
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -224,17 +238,17 @@ const CloudPanel = () => {
                 )}
             </div>
 
-            <div className="p-4 bg-secondary/10 border-t mt-auto">
+            <div className="p-4 bg-secondary/10 border-t border-border mt-auto">
                 <div className="flex justify-between items-center mb-2">
                     <span className="text-[11px] font-black text-secondary uppercase tracking-[0.1em]">Total Storage Used</span>
-                    <span className="text-[11px] font-black text-accent drop-shadow-sm">
-                        {(userPdfs.reduce((acc, p) => acc + (p.size || 0), 0) / 1024 / 1024).toFixed(1)} / 1024 MB
+                    <span className="text-[11px] font-black text-accent">
+                        {totalSize.toFixed(1)} / 1024 MB
                     </span>
                 </div>
                 <div className="w-full bg-secondary/20 h-2 rounded-full overflow-hidden shadow-inner">
                     <div
                         className="h-full bg-gradient-to-r from-accent to-blue-400 shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)] transition-all duration-500"
-                        style={{ width: `${Math.min(100, (userPdfs.reduce((acc, p) => acc + (p.size || 0), 0) / 1024 / 1024 / 1024) * 100)}%` }}
+                        style={{ width: `${Math.min(100, (totalSize / 1024) * 100)}%` }}
                     />
                 </div>
                 <p className="text-[9px] text-secondary/50 mt-2 font-bold uppercase tracking-tighter">

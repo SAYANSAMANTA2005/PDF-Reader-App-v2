@@ -117,7 +117,7 @@ export const PDFProvider = ({ children }) => {
         '#00ff00': 'Important'
     });
 
-    const [isPremium, setIsPremium] = useState(false);
+    const [isPremium, setIsPremium] = useState(true); // Default TRUE for Launch Offer
     const [user, setUser] = useState(null);
     const [userPlan, setUserPlan] = useState('free');
     const [userPdfs, setUserPdfs] = useState([]);
@@ -143,6 +143,7 @@ export const PDFProvider = ({ children }) => {
     const [isCommentPanelOpen, setIsCommentPanelOpen] = useState(false);
     const [isCloudSyncing, setIsCloudSyncing] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
+    const [loadingStage, setLoadingStage] = useState('idle'); // 'idle', 'fetch', 'parse', 'optimize', 'toc', 'complete'
     const [hasUnsavedAnnotations, setHasUnsavedAnnotations] = useState(false);
 
     /**
@@ -204,7 +205,8 @@ export const PDFProvider = ({ children }) => {
         try {
             const plan = await authService.getUserPlan(currentUser.id);
             setUserPlan(plan);
-            setIsPremium(plan === 'pro' || plan === 'elite');
+            // LAUNCH OFFER: FORCE ELITE MODE
+            setIsPremium(true);
             const pdfs = await supabaseStorage.getUserPDFs(currentUser.id);
             setUserPdfs(pdfs);
         } catch (err) {
@@ -213,7 +215,7 @@ export const PDFProvider = ({ children }) => {
     };
 
     const handleSignIn = async () => {
-        setPdfDocument(null); setAnnotations({}); setIsLoading(true); setDownloadProgress(0);
+        setPdfDocument(null); setAnnotations({}); setIsLoading(true); setDownloadProgress(0); setLoadingStage('fetch');
         try {
             const newUser = await authService.signIn();
             if (newUser) {
@@ -224,7 +226,7 @@ export const PDFProvider = ({ children }) => {
             console.error('Manual Sign In Failed:', err);
             throw err;
         } finally {
-            setIsLoading(false);
+            setIsLoading(false); setLoadingStage('complete');
         }
     };
 
@@ -565,7 +567,7 @@ export const PDFProvider = ({ children }) => {
 
     const loadPDF = async (file, options = {}) => {
         const { tabId: customTabId, track = true, initialPage = 1, customFileName = null } = options;
-        setPdfDocument(null); setAnnotations({}); setIsLoading(true); setDownloadProgress(0);
+        setPdfDocument(null); setAnnotations({}); setIsLoading(true); setDownloadProgress(0); setLoadingStage('fetch');
         setError(null);
 
         const tabId = customTabId || Math.random().toString(36).substr(2, 9);
@@ -604,12 +606,12 @@ export const PDFProvider = ({ children }) => {
                 throw new Error("Invalid file format");
             }
 
-            const pdf = await loadingTask.promise;
+            const pdf = await loadingTask.promise; setLoadingStage('parse');
             setPdfDocument(pdf);
             setPdfFile(file);
             setFileName(currentFileName);
             setNumPages(pdf.numPages);
-            setCurrentPage(initialPage);
+            setCurrentPage(initialPage); setLoadingStage('optimize');
 
             // Load PDF-specific annotations from storage
             const savedAnns = localStorage.getItem(`annotations_${currentFileName}`);
@@ -758,7 +760,7 @@ export const PDFProvider = ({ children }) => {
             console.error("Error loading PDF:", err);
             setError("Failed to load PDF. Please try again.");
         } finally {
-            setIsLoading(false);
+            setIsLoading(false); setLoadingStage('complete');
         }
     };
 
@@ -964,7 +966,7 @@ export const PDFProvider = ({ children }) => {
         userPdfs, setUserPdfs,
         handleSignIn,
         refreshUserData,
-        isCloudSyncing, downloadProgress, hasUnsavedAnnotations, updateCloudVersion,
+        isCloudSyncing, downloadProgress, loadingStage, hasUnsavedAnnotations, updateCloudVersion,
         isMathMode, setIsMathMode,
         activeEquation, setActiveEquation,
         // Elite Features

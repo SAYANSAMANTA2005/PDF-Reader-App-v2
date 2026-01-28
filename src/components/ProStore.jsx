@@ -46,7 +46,7 @@ const SimpleConfetti = () => (
 );
 
 const ProStore = () => {
-    const { isPremium, setIsPremium } = usePDF();
+    const { isPremium, setIsPremium, setActiveSidebarTab } = usePDF(); // Get setActiveSidebarTab
     const [showCheckout, setShowCheckout] = useState(false);
     const [selectedPlan, setSelectedPlan] = useState('yearly');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -114,7 +114,7 @@ const ProStore = () => {
                         transition={{ delay: 0.2 }}
                         className="text-secondary text-sm md:text-base max-w-2xl mx-auto font-medium leading-relaxed"
                     >
-                        Transform your PDF reading into an AI-powered learning experience. Join 50,000+ students who've increased their productivity by 300%.
+                        Transform your PDF reading into an AI-powered learning experience. <br /><span className='text-accent font-black'>LAUNCH OFFER: Elite Mode is currently enabled by default for ALL users!</span>
                     </motion.p>
                 </div>
 
@@ -126,8 +126,8 @@ const ProStore = () => {
                     className="mb-16 scroll-mt-20"
                 >
                     <PricingComparison onSelectPlan={(plan) => {
-                        setSelectedPlan(plan);
-                        setShowCheckout(true);
+                        // Instead of checkout, go to Share tab
+                        setActiveSidebarTab('share');
                     }} />
                 </motion.div>
 
@@ -190,9 +190,6 @@ const ProStore = () => {
                     </h2>
                     <div className="space-y-4 max-w-3xl mx-auto">
                         {[
-                            { q: "Can I cancel anytime?", a: "Yes! No long-term commitments. Cancel with one click." },
-                            { q: "Do you offer a free trial?", a: "We offer a 30-day money-back guarantee instead." },
-                            { q: "What payment methods do you accept?", a: "We accept all major credit cards, UPI, and more." },
                             { q: "Can I use it offline?", a: "Yes! Most features work offline once your PDF is loaded." }
                         ].map((faq, i) => (
                             <div key={i} className="glass-card p-5">
@@ -321,4 +318,3 @@ const ProStore = () => {
 };
 
 export default ProStore;
-

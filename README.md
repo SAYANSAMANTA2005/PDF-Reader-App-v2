@@ -12,8 +12,9 @@ This isn't just another PDF reader—it's a **Revolutionary Learning Environment
 ## 🌐 **Live Deployment Links**
 
 ### 🚀 **Most Advanced Version (Recommended)**
-- **Primary**: [https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app/)
-- **Mirror 1**: [https://pdfreaderappv2-2g0vmcu61-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-2g0vmcu61-sayan-samantas-projects-662b7d85.vercel.app/)
+- **Primary**: [https://pdfreaderappv2-cflh09twa-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-cflh09twa-sayan-samantas-projects-662b7d85.vercel.app/)
+- **Mirror 1**: [https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app/)
+- **Mirror 2**: [https://pdfreaderappv2-2g0vmcu61-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-2g0vmcu61-sayan-samantas-projects-662b7d85.vercel.app/)
 
 ### 📦 **Stable Production Versions**
 - [https://pdf-reader-app-41ag.onrender.com/](https://pdf-reader-app-41ag.onrender.com/)
@@ -21,8 +22,6 @@ This isn't just another PDF reader—it's a **Revolutionary Learning Environment
 - [https://pdfreaderappv2-ibdmu5mrp-sayan-samantas-projects-662b7d85.vercel.app/](https://pdfreaderappv2-ibdmu5mrp-sayan-samantas-projects-662b7d85.vercel.app/)
 - [https://pdfreaderaiapp.vercel.app/](https://pdfreaderaiapp.vercel.app/)
 - [https://pdf-reader-ai-app.onrender.com/](https://pdf-reader-ai-app.onrender.com/)
-
-> **Note**: If any link shows "Access Required", it's a Vercel deployment protection setting. See [Deployment Troubleshooting](#-deployment-troubleshooting) below.
 
 ---
 
@@ -132,90 +131,7 @@ This isn't just another PDF reader—it's a **Revolutionary Learning Environment
 
 ---
 
-## 🚀 **Quick Start**
-
-### 📦 **Local Installation**
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/SAYANSAMANTA2005/PDF-Reader-App-v2.git
-cd PDF-Reader-App-v2
-
-# 2. Install dependencies
-npm install
-
-# 3. Setup Environment Variables
-# Create a .env file in the root directory
-# Add your Supabase credentials:
-# VITE_SUPABASE_URL=your_supabase_url
-# VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# 4. Run the development server
-npm run dev
-
-# 5. Open in browser
-# Navigate to http://localhost:5173
-```
-
-### 🌐 **Deploy to Vercel**
-
-```bash
-# 1. Install Vercel CLI
-npm i -g vercel
-
-# 2. Login to Vercel
-vercel login
-
-# 3. Deploy
-vercel
-
-# 4. Follow the prompts
-# - Link to existing project or create new
-# - Set environment variables in Vercel dashboard
-```
-
----
-
-## 🔧 **Deployment Troubleshooting**
-
-### **Issue: "Access Required" Screen on Vercel**
-
-If your deployment shows an "Access Required" or "SSO Protection" screen:
-
-1. **Login to Vercel Dashboard**: [https://vercel.com/dashboard](https://vercel.com/dashboard)
-2. **Select Your Project**: Click on `pdf-reader-app-v2`
-3. **Go to Settings**: Click the "Settings" tab
-4. **Deployment Protection**:
-   - Find **"Deployment Protection"** in the sidebar
-   - **Disable "Vercel Authentication"** (toggle OFF)
-   - If on a Team plan, ensure this is disabled for both Preview and Production
-5. **Save & Redeploy**:
-   - Click "Save"
-   - Go to "Deployments" tab
-   - Click "Redeploy" on your latest deployment
-
-### **Alternative: Promote to Production**
-
-If the above doesn't work, your link might be a "Preview" deployment:
-1. Go to "Deployments" tab
-2. Find your deployment
-3. Click "..." menu → "Promote to Production"
-
----
-
-## 🌟 **Viral Growth Mechanics**
-
-We've replaced traditional payment with a **"Share-to-Unlock"** model:
-
-- **Free Plan**: Basic reading features
-- **Pro Plan**: Unlocked by referring **3 Friends**
-- **Elite Plan**: Unlocked by referring **5 Friends**
-
-**🎁 Launch Offer**: Currently, **ALL users get Elite Mode FREE** by default!
-
----
-
-## 📸 **Screenshots**
+##  **Screenshots**
 
 ### Main Reading Interface
 ![Main Interface](https://images.unsplash.com/photo-1544396821-4dd40b938ad3?q=80&w=2073&auto=format&fit=crop)
@@ -238,7 +154,7 @@ This software is **proprietary and confidential**. Unauthorized copying, distrib
 - ✅ **Permitted**: Personal use, educational use, sharing the live app link
 - ❌ **Prohibited**: Copying code, redistribution, commercial use without license, reverse engineering
 
-For licensing inquiries, contact: **sayansamanta2005@gmail.com**
+For licensing inquiries, contact: **sayansamantanext2005@gmail.com**
 
 ---
 
@@ -266,7 +182,7 @@ Built with:
 ## 📞 **Contact & Support**
 
 - **Developer**: Sayan Samanta
-- **Email**: sayansamanta2005@gmail.com
+- **Email**: sayansamantanext2005@gmail.com
 - **GitHub**: [@SAYANSAMANTA2005](https://github.com/SAYANSAMANTA2005)
 - **Repository**: [PDF-Reader-App-v2](https://github.com/SAYANSAMANTA2005/PDF-Reader-App-v2)
 
@@ -287,7 +203,7 @@ Built with:
 
 **⭐ Star this repo if you find it useful!**
 
-**🚀 [Try the Live App Now](https://pdfreaderappv2-1tkh4f6lk-sayan-samantas-projects-662b7d85.vercel.app/)**
+**🚀 [Try the Live App Now](https://pdfreaderappv2-cflh09twa-sayan-samantas-projects-662b7d85.vercel.app/)**
 
 Made with ❤️ by Sayan Samanta
 

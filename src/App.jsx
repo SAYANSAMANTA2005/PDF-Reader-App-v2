@@ -19,7 +19,7 @@ const App = () => {
 
     const {
         pdfDocument, loadPDF, isSidebarOpen, setIsSidebarOpen,
-        isLoading, downloadProgress, error, cognitiveLoad, setCognitiveLoad,
+        isLoading, downloadProgress, loadingStage, error, cognitiveLoad, setCognitiveLoad,
         setActiveSidebarTab,
         isPdfToImageOpen, setIsPdfToImageOpen,
         isSplitMergeOpen, setIsSplitMergeOpen,
@@ -144,21 +144,17 @@ const App = () => {
                                         </label>
                                     </div>
                                     {isLoading && (
-                                        <div className="flex flex-col items-center gap-3 mt-6">
-                                            <div className="relative w-64 h-2 bg-secondary/30 rounded-full overflow-hidden border border-white/10 shadow-inner">
-                                                <div
-                                                    className="h-full bg-gradient-to-r from-accent to-blue-400 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)]"
-                                                    style={{ width: `${downloadProgress || 20}%` }}
-                                                />
-                                            </div>
-                                            <div className="flex flex-col items-center gap-1">
-                                                <p className="loading-text text-[11px] uppercase font-black tracking-[0.2em] text-accent animate-pulse">
-                                                    {downloadProgress > 0 ? `Fetching Content: ${downloadProgress}%` : 'Initializing Core Engine...'}
-                                                </p>
-                                                <p className="text-[9px] text-text-secondary uppercase tracking-widest font-blue opacity-50">
-                                                    Optimizing for your device
-                                                </p>
-                                            </div>
+                                        <div className="flex flex-col items-center gap-3 mt-6 animate-in fade-in duration-500">
+                                            <p className="text-sm font-bold text-text-secondary uppercase tracking-wider">
+                                                FETCHING CONTENT: {downloadProgress > 0 ? `${downloadProgress}%` : '0%'}
+                                            </p>
+                                            <p className="text-xs text-text-secondary uppercase tracking-widest opacity-60">
+                                                {loadingStage === 'fetch' ? 'Downloading PDF...' :
+                                                    loadingStage === 'parse' ? 'Analyzing Structure...' :
+                                                        loadingStage === 'optimize' ? 'Optimizing for your device' :
+                                                            loadingStage === 'toc' ? 'Building Table of Contents...' :
+                                                                'Preparing Reader...'}
+                                            </p>
                                         </div>
                                     )}
                                     {error && <p className="error-text">{error}</p>}

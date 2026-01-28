@@ -3,7 +3,7 @@ import { Check, X, Crown, Zap, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const PricingComparison = ({ onSelectPlan }) => {
-    const [billingCycle, setBillingCycle] = useState('yearly'); // 'monthly' or 'yearly'
+    // Removed unused billingCycle state
 
     const features = [
         { name: "AI Quiz Generator", free: false, pro: true, elite: true },
@@ -24,16 +24,16 @@ const PricingComparison = ({ onSelectPlan }) => {
     ];
 
     const plans = [
-        { id: 'free', name: 'Free', price: '₹0', period: '/forever' },
-        { id: 'pro', name: 'Pro', price: '₹5', period: '/month', popular: false },
-        { id: 'elite', name: 'Elite', price: '₹7', period: '/month', popular: true }
+        { id: 'free', name: 'Free', price: '₹0', period: '', displayPrice: 'Free' },
+        { id: 'pro', name: 'Pro', price: 'FREE', period: '', originalPrice: '3 Friends', popular: false },
+        { id: 'elite', name: 'Elite', price: 'FREE', period: '', originalPrice: '5 Friends', popular: true }
     ];
 
     return (
         <div className="space-y-6">
             {/* Simple Heading */}
             <div className="text-center">
-                <p className="text-[10px] font-black tracking-[0.2em] text-accent uppercase">Strictly Monthly Membership</p>
+                <p className="text-[10px] font-black tracking-[0.2em] text-accent uppercase animate-pulse">Launch Offer: All Plans FREE</p>
             </div>
 
             {/* Comparison Table */}
@@ -49,35 +49,32 @@ const PricingComparison = ({ onSelectPlan }) => {
                                     <th
                                         key={plan.id}
                                         className={`p-4 relative transition-all duration-300 ${plan.id !== 'free' ? 'cursor-pointer hover:bg-accent/10 rounded-2xl group active:scale-95' : ''}`}
-                                        onClick={() => plan.id !== 'free' && onSelectPlan && onSelectPlan(plan.id)}
                                     >
                                         {plan.popular && (
                                             <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-accent rounded-full z-20 shadow-lg group-hover:scale-110 transition-transform">
                                                 <span className="text-[8px] font-black text-white uppercase tracking-widest flex items-center gap-1">
-                                                    <Crown size={10} /> Most Popular
+                                                    <Crown size={10} /> Limited Time
                                                 </span>
                                             </div>
                                         )}
-                                        <div className="text-center space-y-2 relative z-10">
-                                            <p className="text-sm font-black text-primary group-hover:text-accent transition-colors tracking-tight">{plan.name}</p>
-                                            <div className="group-hover:scale-110 transition-transform duration-300">
-                                                <span className="text-3xl font-black text-accent">{plan.price}</span>
-                                                <span className="text-xs text-secondary">{plan.period}</span>
+                                        <div className="text-center space-y-2 relative z-10 pt-4">
+                                            <p className="text-sm font-black text-primary group-hover:text-accent transition-colors tracking-tight h-5">{plan.name}</p>
+                                            <div className="group-hover:scale-110 transition-transform duration-300 min-h-[50px] flex flex-col items-center justify-center">
+                                                {plan.originalPrice && (
+                                                    <span className="text-[9px] text-secondary line-through font-medium opacity-70 mb-1">{plan.originalPrice}</span>
+                                                )}
+                                                <span className="text-3xl font-black text-accent leading-none">{plan.price}</span>
                                             </div>
-                                            {plan.savings && (
-                                                <p className="text-[9px] font-bold text-emerald-600 bg-emerald-500/10 py-1 rounded-full">{plan.savings}</p>
-                                            )}
-                                            {plan.id !== 'free' && (
-                                                <div
-                                                    className={`w-full mt-3 px-4 py-2.5 rounded-xl text-[10px] font-black transition-all duration-300 ${plan.popular
-                                                        ? 'bg-accent text-white shadow-lg shadow-accent/30 scale-105'
-                                                        : 'bg-secondary text-primary group-hover:bg-accent group-hover:text-white'
-                                                        }`}
-                                                >
-                                                    {plan.popular ? <Sparkles size={12} className="inline mr-1" /> : null}
-                                                    {plan.popular ? 'Unlock Now' : 'Get Started'}
-                                                </div>
-                                            )}
+
+                                            <div
+                                                className={`w-full mt-2 px-3 py-2 rounded-xl text-[9px] font-black transition-all duration-300 ${plan.popular
+                                                    ? 'bg-accent text-white shadow-lg shadow-accent/30'
+                                                    : 'bg-secondary/10 text-primary'
+                                                    }`}
+                                            >
+                                                {plan.popular ? <Sparkles size={10} className="inline mr-1" /> : null}
+                                                Active Now
+                                            </div>
                                         </div>
                                     </th>
                                 ))}
@@ -125,11 +122,11 @@ const PricingComparison = ({ onSelectPlan }) => {
                 </div>
                 <div className="flex items-center gap-2">
                     <Check size={16} className="text-emerald-500" />
-                    <span className="text-[10px] font-bold text-secondary">30-Day Money Back</span>
+                    <span className="text-[10px] font-bold text-secondary">Unlimited Sharing</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Crown size={16} className="text-amber-500" />
-                    <span className="text-[10px] font-bold text-secondary">50,000+ Happy Users</span>
+                    <span className="text-[10px] font-bold text-secondary">Premium Features</span>
                 </div>
             </div>
         </div>
